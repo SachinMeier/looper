@@ -1,0 +1,49 @@
+[package]
+name = "looper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+postgres = { version = "0.19.7", features = ["with-chrono-0_4"]}
+chrono = "0.4.30"
+async-trait = "0.1.68"
+base64 = "0.21.0"
+bdk = { version = "0.28.1", features = ["rpc", "all-keys", "sqlite"]}
+protobuf = "3.2.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.91"
+config = "0.13.3"
+deadpool-postgres = "0.10.5"
+futures = "0.3.25"
+futures-util = "0.3.25"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+lightning = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+lightning-background-processor = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+lightning-block-sync = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+lightning-invoice = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+lightning-net-tokio = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+lightning-persister = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
+log = "0.4.17"
+tokio = { version = "1.7.1", features = ["fs", "rt-multi-thread"] }
+tokio-postgres = "0.7.7"
+fedimint-tonic-lnd = "0.1.0"
+tonic = { version = "0.6.2", features = ["transport", "tls"] }
+prost = "0.9.0"
+rustls = { version = "0.19.0", features = ["dangerous_configuration"] }
+refinery = { version = "0.8", features = ["tokio-postgres"]}
+log4rs = "1.2.0"
+rand = "0.8.5"
+rocket = { version = "=0.5.0-rc.3", features = ["json"]}
+http = "0.2.9"
+
+[build-dependencies]
+tonic-build = "0.5.2"
+protobuf = "3.2.0"
+protobuf-codegen = "3.2.0"
+
+[dev-dependencies]
+tokio = { version = "1.7.1", features = ["rt-multi-thread"] }
