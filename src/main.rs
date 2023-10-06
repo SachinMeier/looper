@@ -1,39 +1,40 @@
 // mod db;
-mod lnd;
-mod settings;
-mod pgdb;
 mod db;
-// mod wallet;
-mod api;
+mod lnd;
+mod pgdb;
+mod settings;
+mod utils;
+mod wallet;
+// mod api;
 mod services;
 
-#[macro_use] extern crate rocket;
-
+#[macro_use]
+extern crate rocket;
 
 use bdk::bitcoin::secp256k1::PublicKey;
-use lnd::{client, client::LNDGateway};
 use db::Db;
+use lnd::{client, client::LNDGateway};
 // use wallet::LooperWallet;
 use std::str::FromStr;
 
 use rand::Rng;
 
 fn main() {
-    // startup();
+    startup();
 
     // let info = LNDGateway::get_info();
     // println!("{:?}", info);
-
+    let invoice = LNDGateway::add_invoice(100, 400);
+    println!("{:?}", invoice);
     // code goes here
     // play();
-    api::start();
-    
-    println!("hit enter to exit");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
+    // api::start();
 
-    // shutdown();
+    // println!("hit enter to exit");
+    // let mut input = String::new();
+    // std::io::stdin().read_line(&mut input).unwrap();
 
+    shutdown();
 }
 
 fn script_build() {
@@ -53,7 +54,7 @@ fn script_build() {
 fn startup() {
     let cfg = settings::build_config().unwrap();
     settings::init_logging();
-    
+
     Db::start();
     Db::migrate().unwrap();
 

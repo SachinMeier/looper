@@ -1,5 +1,6 @@
-
 use http::status::StatusCode;
+use rocket::serde::json::Json;
+use rocket::serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -10,17 +11,14 @@ pub struct LooperError {
 
 pub struct LooperErrorResponse {
     pub error: LooperError,
-    pub code: i32,
+    pub code: StatusCode,
 }
 
 impl LooperErrorResponse {
-    pub fn new(code: i32, message: String, param: String) -> LooperError {
-        LooperErrorResponse{
-            code: code,
-            error: LooperError {
-                message,
-                param,
-            }
+    pub fn new(code: StatusCode, message: String, param: String) -> Self {
+        Self {
+            code,
+            error: LooperError { message, param },
         }
     }
 }
