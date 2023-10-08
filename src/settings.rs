@@ -1,8 +1,9 @@
 use std::env;
 use std::sync::Once;
-use crate::client::LNDConfig;
 
-use config::{Config, ConfigError, Environment, File};
+use config::{ConfigError, Environment, File};
+
+pub use config::Config;
 
 static INIT: Once = Once::new();
 
@@ -15,14 +16,6 @@ pub fn build_config() -> Result<Config, ConfigError> {
         .add_source(File::with_name(&format!("config/{}", profile)).required(false))
         .add_source(Environment::with_prefix("RLS").separator("_"))
         .build()
-}
-
-pub fn get_lnd_config(cfg: &Config) -> LNDConfig {
-    LNDConfig{
-        address: cfg.get("lnd.address").unwrap(),
-        cert_path: cfg.get("lnd.cert_path").unwrap(),
-        macaroon_path: cfg.get("lnd.macaroon_path").unwrap(),
-    }
 }
 
 pub fn init_logging() {

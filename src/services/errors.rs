@@ -9,6 +9,7 @@ pub struct LooperError {
     pub param: String,
 }
 
+#[derive(Debug)]
 pub struct LooperErrorResponse {
     pub error: LooperError,
     pub code: StatusCode,

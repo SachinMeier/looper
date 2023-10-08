@@ -9,13 +9,26 @@ use tokio::sync::{
     oneshot, Mutex,
 };
 
-use fedimint_tonic_lnd::{invoicesrpc, lnrpc, routerrpc, Client};
+use fedimint_tonic_lnd::{
+    invoicesrpc,
+    lnrpc::{self, FeeLimit},
+    routerrpc::{self, TrackPaymentRequest},
+    Client,
+};
 
 #[derive(Clone)]
 pub struct LNDConfig {
     pub address: String,
     pub cert_path: String,
     pub macaroon_path: String,
+}
+
+pub fn get_lnd_config(cfg: &settings::Config) -> LNDConfig {
+    LNDConfig {
+        address: cfg.get("lnd.address").unwrap(),
+        cert_path: cfg.get("lnd.cert_path").unwrap(),
+        macaroon_path: cfg.get("lnd.macaroon_path").unwrap(),
+    }
 }
 
 lazy_static::lazy_static! {
@@ -64,6 +77,9 @@ pub enum LNDCmd {
     GetInfoReq(lnrpc::GetInfoRequest),
     AddInvoiceReq(lnrpc::Invoice),
     AddHoldInvoiceReq(invoicesrpc::AddHoldInvoiceRequest),
+    SendPaymentReq(routerrpc::SendPaymentRequest),
+    SendPaymentSyncReq(lnrpc::SendRequest),
+    // TODO: TrackPaymentReq(Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -71,13 +87,16 @@ pub enum LNDResult {
     GetInfoResp(lnrpc::GetInfoResponse),
     AddInvoiceResp(lnrpc::AddInvoiceResponse),
     AddHoldInvoiceResp(invoicesrpc::AddHoldInvoiceResp),
+    SendPaymentResp,
+    SendPaymentSyncResp(lnrpc::SendResponse),
+    // TrackPaymentResp(),
     Error { error: fedimint_tonic_lnd::Error },
 }
 
 impl LNDGateway {
     pub fn new() -> Self {
         let app_cfg = settings::build_config().expect("failed to build config");
-        let ln_cfg = settings::get_lnd_config(&app_cfg);
+        let ln_cfg = get_lnd_config(&app_cfg);
 
         let (tx, rx) = mpsc::channel::<(LNDCmd, oneshot::Sender<LNDResult>)>(16);
 
@@ -136,6 +155,36 @@ impl LNDGateway {
                     Err(e) => LNDResult::Error { error: e },
                 }
             }
+
+            LNDCmd::SendPaymentReq(payment_req) => {
+                let resp = client.router().send_payment_v2(payment_req).await;
+
+                match resp {
+                    // TODO: return payment stream and start tracking in a separate thread
+                    Ok(_) => LNDResult::SendPaymentResp,
+                    Err(e) => LNDResult::Error { error: e },
+                }
+            }
+
+            LNDCmd::SendPaymentSyncReq(payment_req) => {
+                let resp = client.lightning().send_payment_sync(payment_req).await;
+
+                match resp {
+                    Ok(resp) => LNDResult::SendPaymentSyncResp(resp.into_inner()),
+                    Err(e) => LNDResult::Error { error: e },
+                }
+            } // LNDCmd::TrackPayment(payment_hash) => {
+              //     let req = TrackPaymentRequest{
+              //         payment_hash,
+              //         no_inflight_updates: false
+              //     }
+              //     let resp = client.router().track_payment_v2(req).await;
+
+              //     match resp {
+              //         Ok(resp) => LNDResult::TrackPaymentResp(resp.into_inner()),
+              //         Err(e) => LNDResult::Error { error: e },
+              //     }
+              // }
         };
 
         res_tx.send(resp).unwrap();
@@ -150,8 +199,9 @@ impl LNDGateway {
 
     pub fn add_invoice(
         value: i64,
-        cltv_timout: u64,
+        _cltv_expiry: u64,
     ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
+        // TODO: do we have to generate this?
         let (preimage, payment_hash) = LNDGateway::new_preimage();
         let payment_addr = LNDGateway::new_payment_addr();
         let req = lnrpc::Invoice {
@@ -167,7 +217,8 @@ impl LNDGateway {
             description_hash: vec![],
             expiry: 86000,
             fallback_addr: "".to_string(),
-            cltv_expiry: cltv_timout,
+            // TODO: set this explicitly
+            cltv_expiry: 0, // cltv_expiry,
             private: true,
             add_index: 0,
             settle_index: 0,
@@ -218,11 +269,93 @@ impl LNDGateway {
             LNDCmd::AddHoldInvoiceReq(req),
             LNDResult::AddHoldInvoiceResp(resp) => Ok(AddInvoiceResp{
                     preimage: hex::encode(preimage),
+                    payment_hash: hex::encode(payment_hash),
                     invoice: resp.payment_request,
                     add_index: resp.add_index,
                 })
         }
     }
+
+    pub fn pay_invoice_async(
+        invoice: String,
+        fee_limit: i64,
+    ) -> Result<(), fedimint_tonic_lnd::Error> {
+        // TODO: conditional logic for amt vs zero
+        let req = routerrpc::SendPaymentRequest {
+            payment_request: invoice,
+            timeout_seconds: 600,
+            amt: 0,
+            amt_msat: 0,
+            dest: vec![],
+            payment_hash: vec![],
+            final_cltv_delta: 0,
+            fee_limit_sat: fee_limit,
+            fee_limit_msat: 0,
+            outgoing_chan_id: 0,
+            outgoing_chan_ids: vec![],
+            last_hop_pubkey: vec![],
+            cltv_limit: 0,
+            route_hints: vec![],
+            dest_custom_records: HashMap::new(),
+            allow_self_payment: false,
+            dest_features: vec![],
+            max_parts: 64,
+            no_inflight_updates: true,
+            payment_addr: vec![],
+            max_shard_size_msat: 0,
+            amp: false,
+            time_pref: -1.0,
+        };
+
+        lnd_cmd! {
+            LNDCmd::SendPaymentReq(req),
+            LNDResult::SendPaymentResp => Ok(())
+        }
+    }
+
+    pub fn pay_invoice_sync(
+        invoice: String,
+        fee_limit: i64,
+    ) -> Result<lnrpc::SendResponse, fedimint_tonic_lnd::Error> {
+        let req = lnrpc::SendRequest {
+            dest: vec![],
+            dest_string: "".to_string(),
+            amt: 0,
+            amt_msat: 0,
+            payment_hash: vec![],
+            payment_hash_string: "".to_string(),
+            payment_request: invoice,
+            final_cltv_delta: 0,
+            fee_limit: Some(FeeLimit {
+                limit: Some(lnrpc::fee_limit::Limit::Fixed(fee_limit)),
+            }),
+            outgoing_chan_id: 0,
+            last_hop_pubkey: vec![],
+            cltv_limit: 0,
+            dest_custom_records: HashMap::new(),
+            allow_self_payment: false,
+            dest_features: vec![],
+            payment_addr: vec![],
+        };
+
+        lnd_cmd! {
+            LNDCmd::SendPaymentSyncReq(req),
+            LNDResult::SendPaymentSyncResp(resp) => Ok(resp)
+        }
+    }
+
+    // pub fn track_payment(
+    //     payment_hash: String,
+    // ) -> Result<lnrpc::TrackPaymentResponse, fedimint_tonic_lnd::Error> {
+    //     let req = lnrpc::TrackPaymentRequest {
+    //         payment_hash: payment_hash.into_bytes(),
+    //     };
+
+    //     lnd_cmd! {
+    //         LNDCmd::TrackPaymentReq(req),
+    //         LNDResult::TrackPaymentResp(resp) => Ok(resp)
+    //     }
+    // }
 
     pub fn new_preimage() -> ([u8; 32], [u8; 32]) {
         let mut rng = rand::thread_rng();
@@ -236,6 +369,7 @@ impl LNDGateway {
         (preimage, payment_hash)
     }
 
+    // TODO move this to a general new_32_byte_array function
     pub fn new_payment_addr() -> [u8; 32] {
         let mut rng = rand::thread_rng();
 

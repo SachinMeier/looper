@@ -1,21 +1,29 @@
 use bdk::{
     bitcoin::{
-        blockdata::{opcodes, script},
-        hashes::{hex::ToHex, sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
-        schnorr::{UntweakedKeyPair, UntweakedPublicKey},
-        secp256k1::{rand::thread_rng, PublicKey, Secp256k1, SecretKey},
-        util::{
-            bip32::{ExtendedPrivKey, ExtendedPubKey},
-            key::{KeyPair, PrivateKey, XOnlyPublicKey},
-            taproot,
-            taproot::{TaprootBuilder, TaprootSpendInfo},
+        bip32::{ChildNumber, ExtendedPrivKey, ExtendedPubKey},
+        blockdata::{
+            locktime::absolute::LockTime, opcodes, script, script::PushBytes, transaction::OutPoint,
         },
-        Network,
+        hashes::{sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
+        secp256k1::{
+            rand::thread_rng, KeyPair, Parity, PublicKey, Secp256k1, SecretKey, XOnlyPublicKey,
+        },
+        taproot,
+        taproot::{TaprootBuilder, TaprootSpendInfo},
+        Address, Network, ScriptBuf,
     },
     blockchain::{ConfigurableBlockchain, RpcBlockchain, RpcConfig},
     database::SqliteDatabase,
-    Balance, SyncOptions,
+    descriptor::Descriptor,
+    wallet::{wallet_name_from_descriptor, AddressIndex, AddressInfo},
+    Balance,
+    KeychainKind::{self, External, Internal},
+    SyncOptions, Wallet,
 };
+use hex::ToHex;
+use std::mem;
+
+use std::sync::Mutex;
 
 use http::status::StatusCode;
 use std::str::FromStr;
@@ -44,7 +52,7 @@ pub struct TaprootScriptInfo {
     pub tree: Vec<String>,
 }
 
-fn new_taproot_script_info(tsi: TaprootSpendInfo, tweak: SecretKey) -> TaprootScriptInfo {
+fn new_taproot_script_info(tsi: &TaprootSpendInfo, tweak: SecretKey) -> TaprootScriptInfo {
     TaprootScriptInfo {
         external_key: tsi.output_key().to_string(),
         internal_key: tsi.internal_key().to_string(),
@@ -53,15 +61,15 @@ fn new_taproot_script_info(tsi: TaprootSpendInfo, tweak: SecretKey) -> TaprootSc
     }
 }
 
-fn tree_to_vec(tsi: TaprootSpendInfo) -> Vec<String> {
+fn tree_to_vec(tsi: &TaprootSpendInfo) -> Vec<String> {
     let mut vec: Vec<String> = vec![];
-    let iter = tsi.as_script_map().into_iter();
+    let iter = tsi.as_script_map().iter();
 
     for ((script, _version), _) in iter {
-        vec.push(script.to_hex());
+        vec.push(script.to_hex_string());
     }
 
-    return vec;
+    vec
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -69,16 +77,20 @@ fn tree_to_vec(tsi: TaprootSpendInfo) -> Vec<String> {
 pub struct LoopOutInfo {
     pub fee: i64,
     pub loop_hash: String,
+    pub cltv_expiry: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct LoopOutResponse {
     pub invoice: String,
-    pub pubkey: String,
-    pub tweak: String,
+    pub address: String,
+    pub looper_pubkey: String,
+    pub txid: String,
+    pub vout: u32,
     pub taproot_script_info: TaprootScriptInfo,
     pub loop_info: LoopOutInfo,
+    pub error: Option<LooperError>,
 }
 
 pub struct LoopOutConfig {
@@ -88,17 +100,13 @@ pub struct LoopOutConfig {
     pub fee_pct: i64,
 }
 
-// lazy_static::lazy_static! {
-//     static ref LOS: LoopOutService = LoopOutService::new();
-// }
-
 pub struct LoopOutService {
     cfg: LoopOutConfig,
+    wallet: Mutex<LooperWallet>,
 }
 
 impl LoopOutService {
-    fn new() -> Self {
-        let cfg = settings::build_config().unwrap();
+    pub fn new(cfg: &settings::Config, wallet: LooperWallet) -> Self {
         Self {
             cfg: LoopOutConfig {
                 min_amount: cfg.get_int("loopout.min").unwrap(),
@@ -106,57 +114,84 @@ impl LoopOutService {
                 cltv_timeout: cfg.get_int("loopout.cltv").unwrap().try_into().unwrap(),
                 fee_pct: cfg.get_int("loopout.fee").unwrap(),
             },
+            wallet: Mutex::new(wallet),
         }
     }
 
-    pub fn handle_loop_out_request(
-        &self,
-        req: LoopOutRequest,
-    ) -> Result<LoopOutResponse, LooperErrorResponse> {
-        self.validate_request(req)?;
-
-        let buyer_pubkey: PublicKey = PublicKey::from_str(&req.pubkey).unwrap();
-        let fee = self.calculate_fee(req.amount);
+    pub fn handle_loop_out_request(&self, req: LoopOutRequest) -> (LoopOutResponse, u32) {
+        self.validate_request(&req).unwrap();
+        log::info!("validated request");
+        // TODO: dont create a new one every function...
+        let secp256k1 = Secp256k1::new();
+        let buyer_pubkey: XOnlyPublicKey = XOnlyPublicKey::from_str(&req.pubkey).unwrap();
+        let fee = self.calculate_fee(&req.amount);
         let invoice_amount = req.amount + fee;
-        // create new pubkey
-        let looper_pubkey: PublicKey = PublicKey::from_str("todo implement me").unwrap();
 
-        let invoice = LNDGateway::add_invoice(invoice_amount, self.cfg.cltv_timeout).unwrap();
+        // Lock wallet here and get all necessary info
+        let wallet = self.wallet.lock().unwrap();
+        let network = (*wallet).get_network();
+        // create new pubkey
+        let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey();
+        let curr_height = (*wallet).get_height().unwrap();
+        log::info!("curr_height: {}", curr_height);
+        let cltv_timeout: u32 = self.cfg.cltv_timeout.try_into().unwrap();
+        // TODO: currently unused. bad
+        let cltv_expiry = curr_height + cltv_timeout;
+        mem::drop(wallet);
+        // Unlock wallet
+
+        log::info!("adding invoice...");
+        let invoice = LNDGateway::add_invoice(invoice_amount, cltv_expiry as u64).unwrap();
+        log::info!("added invoice");
 
         let mut payhash_bytes = [0u8; 32];
         hex::decode_to_slice(&invoice.payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
 
-        let cltv_timeout: i64 = self.cfg.cltv_timeout.try_into().unwrap();
         let (tr, tweak) =
-            LooperWallet::new_htlc(buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_timeout);
+            LooperWallet::new_htlc(buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry);
 
-        let taproot_script_info = new_taproot_script_info(tr, tweak);
-
-        // convert tr, tweak to scriptInfo & string respectively
+        let taproot_script_info = new_taproot_script_info(&tr, tweak);
 
         let loop_info = LoopOutInfo {
             fee,
             loop_hash: invoice.payment_hash,
+            cltv_expiry,
         };
 
-        let resp = LoopOutResponse {
-            invoice: invoice.invoice,
-            pubkey: hex::encode(looper_pubkey.serialize()),
-            tweak: hex::encode(tweak.secret_bytes()),
-            taproot_script_info,
-            loop_info,
-        };
+        let address = Address::p2tr(&secp256k1, tr.internal_key(), tr.merkle_root(), network);
 
-        return Ok(resp);
+        // lock the wallet again to build and sign the transaction and broadcast it
+        let wallet = self.wallet.lock().unwrap();
+        let txid = (*wallet)
+            .send_to_address(&address.to_string(), req.amount as u64)
+            .unwrap();
+        mem::drop(wallet);
+        // Unlock wallet
+
+        let txid = format!("{:x}", txid.as_raw_hash().forward_hex());
+
+        (
+            LoopOutResponse {
+                invoice: invoice.invoice,
+                address: address.to_string(),
+                looper_pubkey: hex::encode(looper_pubkey.serialize()),
+                txid,
+                vout: 0,
+                taproot_script_info,
+                loop_info,
+                error: None,
+            },
+            looper_pubkey_idx,
+        )
     }
 
-    fn calculate_fee(&self, amount: i64) -> i64 {
-        return amount * self.cfg.fee_pct / 100;
+    fn calculate_fee(&self, amount: &i64) -> i64 {
+        amount * self.cfg.fee_pct / 100
     }
 
-    fn validate_request(&self, req: LoopOutRequest) -> Result<(), LooperErrorResponse> {
+    fn validate_request(&self, req: &LoopOutRequest) -> Result<(), LooperErrorResponse> {
         self.validate_amount(req.amount)?;
-        self.validate_pubkey(req.pubkey)?;
+        self.validate_pubkey(&req.pubkey)?;
         Ok(())
     }
 
@@ -179,8 +214,8 @@ impl LoopOutService {
         Ok(())
     }
 
-    fn validate_pubkey(&self, pubkey_str: String) -> Result<(), LooperErrorResponse> {
-        match PublicKey::from_str(&pubkey_str) {
+    pub fn validate_pubkey(&self, pubkey_str: &str) -> Result<(), LooperErrorResponse> {
+        match XOnlyPublicKey::from_str(pubkey_str) {
             Ok(_) => Ok(()),
 
             Err(_) => Err(LooperErrorResponse::new(

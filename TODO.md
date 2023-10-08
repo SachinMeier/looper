@@ -34,7 +34,8 @@ loop_out
 - id
 - state = {requested, onchain, complete, cancelled}
 - buyer_pubkey
-- seller_pubkey
+- looper_pubkey
+- looper_pubkey_index
 - CLTV timeout
 - invoice_id
 - utxo_id
