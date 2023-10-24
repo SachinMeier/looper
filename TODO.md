@@ -26,6 +26,7 @@ FUTURE 5. Optionally Buyer requests cooperation to move funds to a new address u
 This is the current plan for the architecture. It's simple, but i'm new to Rust and unfamiliar with how to allow both
 LoopInSvc and LoopOutSvc to manage the same resources. In any case, we aren't building LoopInSvc yet. 
 
+```
 API --> LoopOutSvc --> LNDG
     |              \--> DB
     |               \--> Wallet
@@ -33,6 +34,7 @@ API --> LoopOutSvc --> LNDG
     \--> LoopInSvc --> LNDG
                    \--> DB
                     \--> Wallet
+```
 
 ## Tasks
 
@@ -44,8 +46,8 @@ API:
     - GET /loop/out/{payment_hash} - get loop out
 
 DB:
-1. Finish Deisel DB setup
-    - Create Deisel objects for LoopOuts, UTXOs, Invoices
+1. Finish Diesel DB setup
+    - Create Diesel objects for LoopOuts, UTXOs, Invoices
     - Ideally, both client and server can share 1 DB schema, since they will both need the same data. 
 2. add read/write functions for each table
 3. Add DB functions to LoopOutSvc
