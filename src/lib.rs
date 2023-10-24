@@ -1,6 +1,9 @@
 pub mod db;
 pub mod lnd;
-pub mod pgdb;
+// pub mod models;
+// pub mod schema;
+mod models;
+mod schema;
 pub mod settings;
 pub mod utils;
 pub mod wallet;

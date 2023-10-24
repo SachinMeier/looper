@@ -42,6 +42,7 @@ rocket = { version = "=0.5.0-rc.3", features = ["json"]}
 http = "0.2.9"
 sha2 = "0.10.8"
 bitcoin_hashes = "0.13.0"
+diesel = {version = "2.1.0", features = ["postgres", "chrono"]}
 
 [build-dependencies]
 tonic-build = "0.5.2"

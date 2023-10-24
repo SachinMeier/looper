@@ -6,7 +6,8 @@ use bdk::{
         },
         hashes::{sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
         secp256k1::{
-            rand::thread_rng, KeyPair, Parity, PublicKey, Secp256k1, SecretKey, XOnlyPublicKey,
+            self, rand::thread_rng, KeyPair, Parity, PublicKey, Secp256k1, SecretKey,
+            XOnlyPublicKey,
         },
         taproot,
         taproot::{TaprootBuilder, TaprootSpendInfo},
@@ -23,7 +24,7 @@ use bdk::{
 use hex::ToHex;
 use std::mem;
 
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use http::status::StatusCode;
 use std::str::FromStr;
@@ -31,10 +32,14 @@ use std::str::FromStr;
 use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
 
-use crate::lnd::client::LNDGateway;
-use crate::services::errors::{LooperError, LooperErrorResponse};
-use crate::settings;
-use crate::wallet::LooperWallet;
+use crate::{
+    db::DB,
+    lnd::client::{AddInvoiceResp, LNDGateway},
+    models::{InvoiceState, NewInvoice},
+    services::errors::{LooperError, LooperErrorResponse},
+    settings,
+    wallet::LooperWallet,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -102,11 +107,20 @@ pub struct LoopOutConfig {
 
 pub struct LoopOutService {
     cfg: LoopOutConfig,
+    secp256k1: Secp256k1<secp256k1::All>,
+    network: Network,
+    db: DB,
     wallet: Mutex<LooperWallet>,
+    lnd_gateway: Mutex<LNDGateway>,
 }
 
 impl LoopOutService {
-    pub fn new(cfg: &settings::Config, wallet: LooperWallet) -> Self {
+    pub fn new(
+        cfg: &settings::Config,
+        db: DB,
+        wallet: LooperWallet,
+        lnd_gateway: LNDGateway,
+    ) -> Self {
         Self {
             cfg: LoopOutConfig {
                 min_amount: cfg.get_int("loopout.min").unwrap(),
@@ -114,22 +128,23 @@ impl LoopOutService {
                 cltv_timeout: cfg.get_int("loopout.cltv").unwrap().try_into().unwrap(),
                 fee_pct: cfg.get_int("loopout.fee").unwrap(),
             },
+            db,
+            secp256k1: Secp256k1::new(),
+            network: wallet.get_network(),
             wallet: Mutex::new(wallet),
+            lnd_gateway: Mutex::new(lnd_gateway),
         }
     }
 
-    pub fn handle_loop_out_request(&self, req: LoopOutRequest) -> (LoopOutResponse, u32) {
+    pub async fn handle_loop_out_request(&self, req: LoopOutRequest) -> (LoopOutResponse, u32) {
         self.validate_request(&req).unwrap();
         log::info!("validated request");
-        // TODO: dont create a new one every function...
-        let secp256k1 = Secp256k1::new();
         let buyer_pubkey: XOnlyPublicKey = XOnlyPublicKey::from_str(&req.pubkey).unwrap();
         let fee = self.calculate_fee(&req.amount);
         let invoice_amount = req.amount + fee;
 
         // Lock wallet here and get all necessary info
-        let wallet = self.wallet.lock().unwrap();
-        let network = (*wallet).get_network();
+        let wallet = self.wallet.lock().await;
         // create new pubkey
         let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey();
         let curr_height = (*wallet).get_height().unwrap();
@@ -140,9 +155,10 @@ impl LoopOutService {
         mem::drop(wallet);
         // Unlock wallet
 
-        log::info!("adding invoice...");
-        let invoice = LNDGateway::add_invoice(invoice_amount, cltv_expiry as u64).unwrap();
-        log::info!("added invoice");
+        let invoice = self
+            .add_invoice(invoice_amount, cltv_expiry as u64)
+            .await
+            .unwrap();
 
         let mut payhash_bytes = [0u8; 32];
         hex::decode_to_slice(&invoice.payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
@@ -158,30 +174,73 @@ impl LoopOutService {
             cltv_expiry,
         };
 
-        let address = Address::p2tr(&secp256k1, tr.internal_key(), tr.merkle_root(), network);
+        let address = self.p2tr(&tr);
 
-        // lock the wallet again to build and sign the transaction and broadcast it
-        let wallet = self.wallet.lock().unwrap();
-        let txid = (*wallet)
-            .send_to_address(&address.to_string(), req.amount as u64)
+        let txid = self
+            .build_tx_to_address(&address.to_string(), invoice_amount as u64)
+            .await
             .unwrap();
-        mem::drop(wallet);
-        // Unlock wallet
-
-        let txid = format!("{:x}", txid.as_raw_hash().forward_hex());
 
         (
             LoopOutResponse {
                 invoice: invoice.invoice,
                 address: address.to_string(),
                 looper_pubkey: hex::encode(looper_pubkey.serialize()),
-                txid,
+                txid: format!("{:x}", txid.as_raw_hash().forward_hex()),
                 vout: 0,
                 taproot_script_info,
                 loop_info,
                 error: None,
             },
             looper_pubkey_idx,
+        )
+    }
+
+    async fn add_invoice(
+        &self,
+        amount: i64,
+        cltv_expiry: u64,
+    ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
+        log::info!("adding invoice...");
+        let lndg = self.lnd_gateway.lock().await;
+        let invoice = lndg.add_invoice(amount, cltv_expiry as u64).await;
+        mem::drop(lndg);
+
+        // persist to db
+        let conn = self.db.new_conn();
+
+        let new_invoice = NewInvoice {
+            payment_request: &invoice.payment_request,
+            payment_hash: &invoice.payment_hash,
+            payment_preimage: &invoice.payment_preimage,
+            amount,
+            state: InvoiceState::Open,
+        };
+
+        let inserted_invoice = self.db.insert_invoice(new_invoice);
+
+        log::info!("added invoice");
+
+        invoice
+    }
+
+    async fn build_tx_to_address(
+        &self,
+        address: &str,
+        amount: u64,
+    ) -> Result<bitcoin::Txid, LooperErrorResponse> {
+        let wallet = self.wallet.lock().await;
+        let txid = (*wallet).send_to_address(address, amount)?;
+        mem::drop(wallet);
+        Ok(txid)
+    }
+
+    fn p2tr(&self, tr: &TaprootSpendInfo) -> Address {
+        Address::p2tr(
+            &self.secp256k1,
+            tr.internal_key(),
+            tr.merkle_root(),
+            self.network,
         )
     }
 

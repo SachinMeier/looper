@@ -28,7 +28,7 @@ impl LooperServer {
     fn serve(self) {
         let rt = thread::Builder::new()
             .name("rocket-api".to_string())
-            .spawn(async move || {
+            .spawn(move || {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
@@ -50,11 +50,13 @@ pub fn index() -> &'static str {
 }
 
 #[post("/out", format = "json", data = "<loop_out>")]
-pub fn loop_out(
+pub async fn loop_out(
     loop_out_svc: &rocket::State<LoopOutService>,
     loop_out: Json<LoopOutRequest>,
 ) -> Json<LoopOutResponse> {
-    let resp = loop_out_svc.handle_loop_out_request(loop_out.into_inner());
+    let (resp, _idx) = loop_out_svc
+        .handle_loop_out_request(loop_out.into_inner())
+        .await;
 
     Json(resp)
 }
