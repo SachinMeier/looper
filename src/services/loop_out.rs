@@ -34,8 +34,11 @@ use rocket::serde::{Deserialize, Serialize};
 
 use crate::{
     db::DB,
-    lnd::client::{AddInvoiceResp, LNDGateway},
-    models::{InvoiceState, NewInvoice},
+    lnd::{
+        self,
+        client::{AddInvoiceResp, LNDGateway},
+    },
+    models::NewInvoice,
     services::errors::{LooperError, LooperErrorResponse},
     settings,
     wallet::LooperWallet,
@@ -203,25 +206,23 @@ impl LoopOutService {
     ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
         log::info!("adding invoice...");
         let lndg = self.lnd_gateway.lock().await;
-        let invoice = lndg.add_invoice(amount, cltv_expiry as u64).await;
+        let invoice = lndg.add_invoice(amount, cltv_expiry).await.unwrap();
         mem::drop(lndg);
 
-        // persist to db
-        let conn = self.db.new_conn();
-
         let new_invoice = NewInvoice {
-            payment_request: &invoice.payment_request,
+            payment_request: &invoice.invoice,
             payment_hash: &invoice.payment_hash,
-            payment_preimage: &invoice.payment_preimage,
+            payment_preimage: &invoice.preimage,
             amount,
-            state: InvoiceState::Open,
+            state: lnd::InvoiceOpen.to_string(),
         };
 
-        let inserted_invoice = self.db.insert_invoice(new_invoice);
+        match self.db.insert_invoice(new_invoice) {
+            Ok(_) => log::info!("inserted invoice into db"),
+            Err(e) => log::error!("error inserting invoice into db: {}", e),
+        }
 
-        log::info!("added invoice");
-
-        invoice
+        Ok(invoice)
     }
 
     async fn build_tx_to_address(

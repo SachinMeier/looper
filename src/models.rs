@@ -1,11 +1,11 @@
 use crate::schema::{invoices, loop_outs, utxos};
 use diesel::prelude::*;
 
-pub enum InvoiceState {
-    Open,
-    Settled,
-    Cancelled,
-}
+// pub enum InvoiceState {
+//     Open,
+//     Settled,
+//     Cancelled,
+// }
 
 #[derive(Insertable)]
 #[table_name = "invoices"]
@@ -14,7 +14,7 @@ pub struct NewInvoice<'a> {
     pub payment_hash: &'a str,
     pub payment_preimage: &'a str,
     pub amount: i64,
-    pub state: InvoiceState,
+    pub state: String,
 }
 
 #[derive(Debug, Queryable, AsChangeset)]

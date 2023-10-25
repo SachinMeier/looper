@@ -36,6 +36,16 @@ API --> LoopOutSvc --> LNDG
                     \--> Wallet
 ```
 
+Schema:
+
+```
+loop_out <--- utxo <--- script
+    |
+    \--- invoice
+```
+
+See `migrations/` for the schema of each table.
+
 ## Tasks
 
 I would like to build a complete working example (client & Server) with `LoopOut` first, before moving to `LoopIns`
@@ -67,6 +77,9 @@ Code Organization:
     - common modules (where should this go?)
     - server
     - client
+2. Get rid of all the unwraps and unhandled errors. Setup a good error handling strategy.
+3. Get payment_request vs invoice naming as uniform as possible.
+4. Comment code.
 
 Client:
 1. API Client
