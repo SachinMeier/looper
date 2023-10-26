@@ -36,7 +36,7 @@ impl LooperServer {
                 rt.block_on(async move {
                     let builder = rocket::build()
                         .manage(self.loop_out_svc)
-                        .mount("/loop", routes![index, loop_out]);
+                        .mount("/loop", routes![index, new_loop_out, get_loop_out]);
                     let _ = builder.launch().await;
                 });
             })
@@ -50,7 +50,7 @@ pub fn index() -> &'static str {
 }
 
 #[post("/out", format = "json", data = "<loop_out>")]
-pub async fn loop_out(
+pub async fn new_loop_out(
     loop_out_svc: &rocket::State<LoopOutService>,
     loop_out: Json<LoopOutRequest>,
 ) -> Json<LoopOutResponse> {
@@ -58,5 +58,14 @@ pub async fn loop_out(
         .handle_loop_out_request(loop_out.into_inner())
         .await;
 
+    Json(resp)
+}
+
+#[get("/out/<payment_hash>")]
+pub fn get_loop_out(
+    loop_out_svc: &rocket::State<LoopOutService>,
+    payment_hash: String,
+) -> Json<LoopOutResponse> {
+    let resp = loop_out_svc.get_loop_out(payment_hash);
     Json(resp)
 }

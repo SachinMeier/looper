@@ -21,13 +21,21 @@ pub struct LNDConfig {
     pub address: String,
     pub cert_path: String,
     pub macaroon_path: String,
+    pub invoice_lifetime: i64,
 }
 
+const DEFAULT_INVOICE_LIFETIME: u64 = 86400;
+
 pub fn get_lnd_config(cfg: &settings::Config) -> LNDConfig {
+    let invoice_lifetime = match cfg.get("lnd.invoice_lifetime") {
+        Ok(v) => v,
+        Err(_) => DEFAULT_INVOICE_LIFETIME,
+    }
     LNDConfig {
         address: cfg.get("lnd.address").unwrap(),
         cert_path: cfg.get("lnd.cert_path").unwrap(),
         macaroon_path: cfg.get("lnd.macaroon_path").unwrap(),
+        invoice_lifetime: invoice_lifetime as i64,
     }
 }
 
@@ -83,7 +91,6 @@ impl LNDGateway {
     pub async fn add_invoice(
         &self,
         value: i64,
-        _cltv_expiry: u64,
     ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
         let mut client = self.get_client().await;
 
@@ -94,6 +101,7 @@ impl LNDGateway {
             memo: "looper swap out".to_string(),
             r_preimage: preimage.to_vec(),
             r_hash: payment_hash.to_vec(),
+            expiry: self.cfg.invoice_lifetime,
             value,
             value_msat: 0,
             settled: false,
@@ -101,7 +109,6 @@ impl LNDGateway {
             settle_date: 0,
             payment_request: "".to_string(),
             description_hash: vec![],
-            expiry: 86000,
             fallback_addr: "".to_string(),
             // TODO: set this explicitly
             cltv_expiry: 0, // cltv_expiry,

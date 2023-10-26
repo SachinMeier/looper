@@ -38,7 +38,7 @@ use crate::{
         self,
         client::{AddInvoiceResp, LNDGateway},
     },
-    models::NewInvoice,
+    models::{FullLoopOutData, NewInvoice},
     services::errors::{LooperError, LooperErrorResponse},
     settings,
     wallet::LooperWallet,
@@ -109,7 +109,9 @@ pub struct LoopOutResponse {
 pub struct LoopOutConfig {
     pub min_amount: i64,
     pub max_amount: i64,
-    pub cltv_timeout: u64,
+    // cltv_delta is the different between the blockheight the invoice expires and the blockheight
+    // the utxo timeout script is available
+    pub cltv_delta: u64,
     pub fee_pct: i64,
 }
 
@@ -133,7 +135,7 @@ impl LoopOutService {
             cfg: LoopOutConfig {
                 min_amount: cfg.get_int("loopout.min").unwrap(),
                 max_amount: cfg.get_int("loopout.max").unwrap(),
-                cltv_timeout: cfg.get_int("loopout.cltv").unwrap().try_into().unwrap(),
+                cltv_delta: cfg.get_int("loopout.cltv").unwrap().try_into().unwrap(),
                 fee_pct: cfg.get_int("loopout.fee").unwrap(),
             },
             db,
@@ -142,6 +144,39 @@ impl LoopOutService {
             wallet: Mutex::new(wallet),
             lnd_gateway: Mutex::new(lnd_gateway),
         }
+    }
+
+    pub fn get_loop_out_request(&self, payment_hash: String) -> LoopOutResponse {
+        // TODO: err handle
+        let data = self.db.get_full_loop_out(payment_hash).unwrap();
+
+        map_loop_out_data_to_response(data)
+    }
+
+    fn map_loop_out_data_to_response(data: models::FullLoopOutData) -> LoopOutResponse {
+        let resp = LoopOutResponse {
+            invoice: data.invoice.payment_request,
+            address: data.script.address,
+            looper_pubkey: data.loop_out.local_pubkey,
+            txid: data.utxo.txid,
+            vout: data.utxo.vout,
+            taproot_script_info: TaprootScriptInfo {
+                external_key: data.script.external_key,
+                internal_key: data.script.internal_key,
+                internal_key_tweak: data.script.internal_key_tweak,
+                tree: data.script.tree,
+            },
+            loop_info: LoopOutInfo {
+                // TODO: calculate fee or store it in db?
+                fee: 0,
+                loop_hash: data.invoice.payment_hash,
+                // TODO: fix
+                cltv_expiry: data.script.cltv_expiry,
+            },
+            error: None,
+        };
+
+        resp
     }
 
     pub async fn handle_loop_out_request(&self, req: LoopOutRequest) -> (LoopOutResponse, u32) {
@@ -157,9 +192,9 @@ impl LoopOutService {
         let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey();
         let curr_height = (*wallet).get_height().unwrap();
         log::info!("curr_height: {}", curr_height);
-        let cltv_timeout: u32 = self.cfg.cltv_timeout.try_into().unwrap();
+        let cltv_delta: u32 = self.cfg.cltv_delta.try_into().unwrap();
         // TODO: currently unused. bad
-        let cltv_expiry = curr_height + cltv_timeout;
+        let cltv_expiry = curr_height + cltv_delta;
         mem::drop(wallet);
         // Unlock wallet
 
