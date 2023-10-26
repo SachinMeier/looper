@@ -44,6 +44,11 @@ use crate::{
     wallet::LooperWallet,
 };
 
+pub const LoopOutStateInitiated: &str = "INITIATED";
+pub const LoopOutStateConfirmed: &str = "CONFIRMED";
+pub const LoopOutStateClaimed: &str = "CLAIMED";
+pub const LoopOutStateFailed: &str = "TIMEOUT";
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct LoopOutRequest {
@@ -210,9 +215,11 @@ impl LoopOutService {
         mem::drop(lndg);
 
         let new_invoice = NewInvoice {
+            // TODO: placeholder. FIXME
+            loop_out_id: 1,
             payment_request: &invoice.invoice,
             payment_hash: &invoice.payment_hash,
-            payment_preimage: &invoice.preimage,
+            payment_preimage: Some(&invoice.preimage),
             amount,
             state: lnd::InvoiceOpen.to_string(),
         };

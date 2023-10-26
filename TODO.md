@@ -39,7 +39,7 @@ API --> LoopOutSvc --> LNDG
 Schema:
 
 ```
-loop_out <--- utxo <--- script
+loop_out <--- script <--- utxo
     |
     \--- invoice
 ```
@@ -61,6 +61,8 @@ DB:
     - Ideally, both client and server can share 1 DB schema, since they will both need the same data. 
 2. add read/write functions for each table
 3. Add DB functions to LoopOutSvc
+4. Switch to DB Connection pooling like so: [example](https://github.com/bocksdin/rust-diesel-orm/blob/main/src/db_utils.rs)
+5. Use DB transactions for atomicity. 
 
 Wallet:
 1. Refactor, break out functions for cleaner, more modular code. 
