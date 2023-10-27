@@ -212,17 +212,24 @@ impl DB {
             .first(&mut conn)?;
 
         match (invoice, script, utxo) {
-            (Some(invoice), Some(script), Some(utxo)) => {
-                let res = FullLoopOutData {
-                    loop_out,
-                    invoice,
-                    script,
-                    utxo: vec![utxo],
-                };
-
-                Ok(res)
-            }
+            (Some(invoice), Some(script), Some(utxo)) => Ok(Self::new_full_loop_out_data(
+                loop_out, invoice, script, utxo,
+            )),
             _ => Err(diesel::result::Error::NotFound),
+        }
+    }
+
+    pub fn new_full_loop_out_data(
+        loop_out: LoopOut,
+        invoice: Invoice,
+        script: Script,
+        utxos: Vec<UTXO>,
+    ) -> FullLoopOutData {
+        FullLoopOutData {
+            loop_out,
+            invoice,
+            script,
+            utxos,
         }
     }
 }

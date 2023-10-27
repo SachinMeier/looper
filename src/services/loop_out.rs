@@ -38,7 +38,7 @@ use crate::{
         self,
         client::{AddInvoiceResp, LNDGateway},
     },
-    models::{FullLoopOutData, NewInvoice},
+    models::{self, FullLoopOutData, Invoice, NewInvoice, NewScript, NewUTXO, Script, UTXO},
     services::errors::{LooperError, LooperErrorResponse},
     settings,
     wallet::LooperWallet,
@@ -109,8 +109,7 @@ pub struct LoopOutResponse {
 pub struct LoopOutConfig {
     pub min_amount: i64,
     pub max_amount: i64,
-    // cltv_delta is the different between the blockheight the invoice expires and the blockheight
-    // the utxo timeout script is available
+    // cltv_delta is how many blocks before the UTXO's timelock expires
     pub cltv_delta: u64,
     pub fee_pct: i64,
 }
@@ -126,6 +125,7 @@ pub struct LoopOutService {
 
 impl LoopOutService {
     pub fn new(
+        // TODO: use LoopOutSvcConfig
         cfg: &settings::Config,
         db: DB,
         wallet: LooperWallet,
@@ -150,20 +150,23 @@ impl LoopOutService {
         // TODO: err handle
         let data = self.db.get_full_loop_out(payment_hash).unwrap();
 
-        map_loop_out_data_to_response(data)
+        Self::map_loop_out_data_to_response(data)
     }
 
     fn map_loop_out_data_to_response(data: models::FullLoopOutData) -> LoopOutResponse {
         let resp = LoopOutResponse {
             invoice: data.invoice.payment_request,
             address: data.script.address,
-            looper_pubkey: data.loop_out.local_pubkey,
-            txid: data.utxo.txid,
-            vout: data.utxo.vout,
+            looper_pubkey: data.script.local_pubkey,
+            // TODO: resolve this. make UTXOs not a vec, or sth
+            txid: data.utxos[0].txid,
+            vout: data.utxos[0].vout as u32,
+            // TOOD: breakout TaprootScriptInfo From Script function
             taproot_script_info: TaprootScriptInfo {
-                external_key: data.script.external_key,
-                internal_key: data.script.internal_key,
-                internal_key_tweak: data.script.internal_key_tweak,
+                external_key: data.script.external_tapkey,
+                internal_key: data.script.internal_tapkey,
+                internal_key_tweak: data.script.internal_tapkey_tweak,
+                // TODO: fix Vec<String> vs Vec<Option<String>>
                 tree: data.script.tree,
             },
             loop_info: LoopOutInfo {
@@ -171,7 +174,7 @@ impl LoopOutService {
                 fee: 0,
                 loop_hash: data.invoice.payment_hash,
                 // TODO: fix
-                cltv_expiry: data.script.cltv_expiry,
+                cltv_expiry: data.script.cltv_expiry as u32,
             },
             error: None,
         };
@@ -179,17 +182,74 @@ impl LoopOutService {
         resp
     }
 
-    pub async fn handle_loop_out_request(&self, req: LoopOutRequest) -> (LoopOutResponse, u32) {
+    pub async fn handle_loop_out_request(&self, req: LoopOutRequest) -> LoopOutResponse {
         self.validate_request(&req).unwrap();
         log::info!("validated request");
         let buyer_pubkey: XOnlyPublicKey = XOnlyPublicKey::from_str(&req.pubkey).unwrap();
         let fee = self.calculate_fee(&req.amount);
         let invoice_amount = req.amount + fee;
 
+        let loop_out = self.add_loop_out();
+
+        let invoice = self
+            .add_invoice(&loop_out.id, invoice_amount)
+            .await
+            .unwrap();
+
+        let script = self
+            .add_onchain_htlc(&loop_out.id, &buyer_pubkey, &invoice.payment_hash)
+            .await;
+
+        let utxo = self
+            .add_utxo_to_htlc(script.id, &script.address, req.amount as u64)
+            .await;
+
+        let full_loop_out_data = DB::new_full_loop_out_data(loop_out, invoice, script, vec![utxo]);
+
+        Self::map_loop_out_data_to_response(full_loop_out_data)
+    }
+
+    fn add_loop_out(&self) -> models::LoopOut {
+        let new_loop_out = models::NewLoopOut {
+            state: LoopOutStateInitiated.to_string(),
+        };
+
+        self.db.insert_loop_out(new_loop_out).unwrap()
+    }
+
+    async fn add_invoice(
+        &self,
+        loop_out_id: &i64,
+        amount: i64,
+    ) -> Result<Invoice, diesel::result::Error> {
+        log::info!("adding invoice...");
+        let lndg = self.lnd_gateway.lock().await;
+        let invoice = lndg.add_invoice(amount).await.unwrap();
+        mem::drop(lndg);
+
+        let new_invoice = NewInvoice {
+            loop_out_id: *loop_out_id,
+            payment_request: &invoice.invoice,
+            payment_hash: &invoice.payment_hash,
+            payment_preimage: Some(&invoice.preimage),
+            amount,
+            state: lnd::InvoiceOpen.to_string(),
+        };
+
+        self.db.insert_invoice(new_invoice)
+    }
+
+    async fn add_onchain_htlc(
+        &self,
+        loop_out_id: &i64,
+        buyer_pubkey: &XOnlyPublicKey,
+        payment_hash: &String,
+    ) -> Script {
         // Lock wallet here and get all necessary info
         let wallet = self.wallet.lock().await;
         // create new pubkey
         let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey();
+        // TODO: sync here to get proper height?
         let curr_height = (*wallet).get_height().unwrap();
         log::info!("curr_height: {}", curr_height);
         let cltv_delta: u32 = self.cfg.cltv_delta.try_into().unwrap();
@@ -198,73 +258,43 @@ impl LoopOutService {
         mem::drop(wallet);
         // Unlock wallet
 
-        let invoice = self
-            .add_invoice(invoice_amount, cltv_expiry as u64)
-            .await
-            .unwrap();
-
         let mut payhash_bytes = [0u8; 32];
-        hex::decode_to_slice(&invoice.payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
+        hex::decode_to_slice(&payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
 
         let (tr, tweak) =
-            LooperWallet::new_htlc(buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry);
+            LooperWallet::new_htlc(*buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry);
 
-        let taproot_script_info = new_taproot_script_info(&tr, tweak);
+        let address = self.p2tr_address(&tr);
 
-        let loop_info = LoopOutInfo {
-            fee,
-            loop_hash: invoice.payment_hash,
-            cltv_expiry,
+        // TODO: factor into function
+        let script = NewScript {
+            loop_out_id: *loop_out_id,
+            address: &address.to_string(),
+            external_tapkey: &tr.output_key().to_string(),
+            internal_tapkey: &tr.internal_key().to_string(),
+            internal_tapkey_tweak: &hex::encode(tweak.secret_bytes()),
+            tree: tree_to_vec(&tr),
+            cltv_expiry: cltv_expiry.try_into().unwrap(),
+            remote_pubkey: buyer_pubkey.to_string(),
+            local_pubkey: looper_pubkey.to_string(),
+            local_pubkey_index: looper_pubkey_idx as i32,
         };
-
-        let address = self.p2tr(&tr);
-
-        let txid = self
-            .build_tx_to_address(&address.to_string(), invoice_amount as u64)
-            .await
-            .unwrap();
-
-        (
-            LoopOutResponse {
-                invoice: invoice.invoice,
-                address: address.to_string(),
-                looper_pubkey: hex::encode(looper_pubkey.serialize()),
-                txid: format!("{:x}", txid.as_raw_hash().forward_hex()),
-                vout: 0,
-                taproot_script_info,
-                loop_info,
-                error: None,
-            },
-            looper_pubkey_idx,
-        )
+        self.db.insert_script(script).unwrap()
     }
 
-    async fn add_invoice(
-        &self,
-        amount: i64,
-        cltv_expiry: u64,
-    ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
-        log::info!("adding invoice...");
-        let lndg = self.lnd_gateway.lock().await;
-        let invoice = lndg.add_invoice(amount, cltv_expiry).await.unwrap();
-        mem::drop(lndg);
+    async fn add_utxo_to_htlc(&self, script_id: i64, address: &str, amount: u64) -> UTXO {
+        let txid = self.build_tx_to_address(address, amount).await.unwrap();
 
-        let new_invoice = NewInvoice {
-            // TODO: placeholder. FIXME
-            loop_out_id: 1,
-            payment_request: &invoice.invoice,
-            payment_hash: &invoice.payment_hash,
-            payment_preimage: Some(&invoice.preimage),
-            amount,
-            state: lnd::InvoiceOpen.to_string(),
+        let utxo = NewUTXO {
+            txid: &txid.to_string(),
+            // TODO: fix
+            vout: 0,
+            amount: amount.try_into().unwrap(),
+            script_id,
         };
+        let utxo = self.db.insert_utxo(utxo).unwrap();
 
-        match self.db.insert_invoice(new_invoice) {
-            Ok(_) => log::info!("inserted invoice into db"),
-            Err(e) => log::error!("error inserting invoice into db: {}", e),
-        }
-
-        Ok(invoice)
+        utxo
     }
 
     async fn build_tx_to_address(
@@ -278,7 +308,7 @@ impl LoopOutService {
         Ok(txid)
     }
 
-    fn p2tr(&self, tr: &TaprootSpendInfo) -> Address {
+    fn p2tr_address(&self, tr: &TaprootSpendInfo) -> Address {
         Address::p2tr(
             &self.secp256k1,
             tr.internal_key(),

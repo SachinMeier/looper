@@ -73,6 +73,7 @@ LoopOutSvc:
     - Invoice payment needs to expire N blocks before the UTXO expires. 40 is minCLTVDelta in LND, so might be sufficient.
     - LND should auto-timeout the payment. Ensure this is true. 
 2. Server should be timeout aware and reclaim UTXOs. 
+3. Factor all the code for creating a New<OBJ> and then inserting and getting the <OBJ> back into separate functions.
 
 Code Organization: 
 1. Factor this repo into:
@@ -82,6 +83,7 @@ Code Organization:
 2. Get rid of all the unwraps and unhandled errors. Setup a good error handling strategy.
 3. Get payment_request vs invoice naming as uniform as possible.
 4. Comment code.
+5. Fix all the u32, i32, u64, i64, etc. conversion. get everything as uniform as possible.
 
 Client:
 1. API Client

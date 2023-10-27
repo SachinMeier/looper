@@ -30,7 +30,7 @@ pub fn get_lnd_config(cfg: &settings::Config) -> LNDConfig {
     let invoice_lifetime = match cfg.get("lnd.invoice_lifetime") {
         Ok(v) => v,
         Err(_) => DEFAULT_INVOICE_LIFETIME,
-    }
+    };
     LNDConfig {
         address: cfg.get("lnd.address").unwrap(),
         cert_path: cfg.get("lnd.cert_path").unwrap(),
@@ -201,6 +201,8 @@ impl LNDGateway {
             outgoing_chan_id: 0,
             outgoing_chan_ids: vec![],
             last_hop_pubkey: vec![],
+            // TODO: SET ME to cltv_delta + block height so that we can ensure the invoice can't be held
+            // until the onchain timelock expires.
             cltv_limit: 0,
             route_hints: vec![],
             dest_custom_records: HashMap::new(),

@@ -47,10 +47,14 @@ pub struct Invoice {
 pub struct NewScript<'a> {
     pub loop_out_id: i64,
     pub address: &'a str,
-    pub external_key: &'a str,
-    pub internal_key: &'a str,
-    pub internal_key_tweak: &'a str,
+    pub external_tapkey: &'a str,
+    pub internal_tapkey: &'a str,
+    pub internal_tapkey_tweak: &'a str,
     pub tree: Vec<String>,
+    pub cltv_expiry: i32,
+    pub remote_pubkey: String,
+    pub local_pubkey: String,
+    pub local_pubkey_index: i32,
 }
 
 #[derive(Debug, Queryable, AsChangeset)]
@@ -59,10 +63,15 @@ pub struct Script {
     pub id: i64,
     pub loop_out_id: Option<i64>,
     pub address: String,
-    pub external_key: String,
-    pub internal_key: String,
-    pub internal_key_tweak: String,
+    pub external_tapkey: String,
+    pub internal_tapkey: String,
+    pub internal_tapkey_tweak: String,
+    // TODO: replace tree with payment_hash
     pub tree: Vec<Option<String>>,
+    pub cltv_expiry: i32,
+    pub remote_pubkey: String,
+    pub local_pubkey: String,
+    pub local_pubkey_index: i32,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
@@ -98,10 +107,6 @@ pub struct UTXO {
 #[table_name = "loop_outs"]
 pub struct NewLoopOut {
     pub state: String,
-    pub remote_pubkey: String,
-    pub local_pubkey: String,
-    pub local_pubkey_index: i32,
-    pub cltv_timeout: i64,
 }
 
 #[derive(Debug, Queryable, AsChangeset)]
@@ -109,10 +114,6 @@ pub struct NewLoopOut {
 pub struct LoopOut {
     pub id: i64,
     pub state: String,
-    pub remote_pubkey: String,
-    pub local_pubkey: String,
-    pub local_pubkey_index: i32,
-    pub cltv_timeout: i64,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
@@ -121,6 +122,6 @@ pub struct LoopOut {
 pub struct FullLoopOutData {
     pub loop_out: LoopOut,
     pub script: Script,
-    pub utxo: Vec<UTXO>,
+    pub utxos: Vec<UTXO>,
     pub invoice: Invoice,
 }

@@ -18,10 +18,6 @@ diesel::table! {
     loop_outs (id) {
         id -> Int8,
         state -> Text,
-        remote_pubkey -> Text,
-        local_pubkey -> Text,
-        local_pubkey_index -> Int4,
-        cltv_timeout -> Int8,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -32,10 +28,14 @@ diesel::table! {
         id -> Int8,
         loop_out_id -> Nullable<Int8>,
         address -> Text,
-        external_key -> Text,
-        internal_key -> Text,
-        internal_key_tweak -> Text,
+        external_tapkey -> Text,
+        internal_tapkey -> Text,
+        internal_tapkey_tweak -> Text,
         tree -> Array<Nullable<Text>>,
+        cltv_expiry -> Int4,
+        remote_pubkey -> Text,
+        local_pubkey -> Text,
+        local_pubkey_index -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
