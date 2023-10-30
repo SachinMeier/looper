@@ -50,17 +50,15 @@ See `migrations/` for the schema of each table.
 
 I would like to build a complete working example (client & Server) with `LoopOut` first, before moving to `LoopIns`
 
+Testing! I have no tests yet.
+
 API:
 1. Build full API endpoints for each function
     - POST /loop/out - create loop out
     - GET /loop/out/{payment_hash} - get loop out
 
 DB:
-1. Finish Diesel DB setup
-    - Create Diesel objects for LoopOuts, UTXOs, Invoices
-    - Ideally, both client and server can share 1 DB schema, since they will both need the same data. 
-2. add read/write functions for each table
-3. Add DB functions to LoopOutSvc
+1. Ideally, both client and server can share 1 DB schema, since they will both need the same data. 
 4. Switch to DB Connection pooling like so: [example](https://github.com/bocksdin/rust-diesel-orm/blob/main/src/db_utils.rs)
 5. Use DB transactions for atomicity. 
 
@@ -74,6 +72,7 @@ LoopOutSvc:
     - LND should auto-timeout the payment. Ensure this is true. 
 2. Server should be timeout aware and reclaim UTXOs. 
 3. Factor all the code for creating a New<OBJ> and then inserting and getting the <OBJ> back into separate functions.
+4. Use DB to generate new pubkeys for each new loopout. 
 
 Code Organization: 
 1. Factor this repo into:
@@ -98,3 +97,7 @@ Client:
 
 3. LoopOutSvc
     - Create check for CLTV expiry before paying invoice. 
+
+
+
+Edge cases: handle multiple UTXOs in the same script. idk how this could happen. 

@@ -34,7 +34,7 @@ use bdk::{
     database::SqliteDatabase,
     descriptor::Descriptor,
     wallet::{wallet_name_from_descriptor, AddressIndex, AddressInfo},
-    Balance,
+    Balance, FeeRate,
     KeychainKind::{self, External, Internal},
     SignOptions, SyncOptions, Wallet,
 };
@@ -49,6 +49,7 @@ pub struct LooperWallet {
 }
 
 impl LooperWallet {
+    // TODO: use WalletCfg instead of Config
     pub fn new(cfg: &settings::Config) -> Self {
         let secp256k1 = Secp256k1::new();
         let xprv_str = env::var("LOOPER_XPRV").unwrap();
@@ -117,6 +118,7 @@ impl LooperWallet {
     }
 
     pub fn sync(&self) -> Result<(), bdk::Error> {
+        // TODO: maybe load current index from db here too.
         self.wallet.sync(&self.blockchain, SyncOptions::default())
     }
 
@@ -128,7 +130,16 @@ impl LooperWallet {
         self.wallet.get_balance().unwrap()
     }
 
-    pub fn send_to_address(&self, address: &str, amount: u64) -> Result<Txid, LooperErrorResponse> {
+    pub fn estimate_fee_rate(&self, target: usize) -> Result<FeeRate, bdk::Error> {
+        self.blockchain.estimate_fee(target)
+    }
+
+    pub fn send_to_address(
+        &self,
+        address: &str,
+        amount: u64,
+        fee_rate: FeeRate,
+    ) -> Result<Transaction, LooperErrorResponse> {
         let mut tx_builder = self.wallet.build_tx();
         let addr = self.validate_address(address)?;
 
@@ -139,7 +150,7 @@ impl LooperWallet {
             // and the change will be to wpkh for now, so overall poor privacy anyway. All fixable.
             .ordering(bdk::wallet::tx_builder::TxOrdering::Untouched)
             .add_recipient(addr.script_pubkey(), amount)
-            .fee_rate(bdk::FeeRate::from_sat_per_vb(5.0))
+            .fee_rate(fee_rate)
             .nlocktime(locktime);
 
         let (mut psbt, _details) = tx_builder.finish().map_err(|e| {
@@ -170,10 +181,8 @@ impl LooperWallet {
         }
 
         let tx = psbt.extract_tx();
-        let txid = tx.txid();
-        self.broadcast_tx(&tx)?;
 
-        Ok(txid)
+        Ok(tx)
     }
 
     pub fn broadcast_tx(&self, tx: &Transaction) -> Result<(), LooperErrorResponse> {
@@ -287,18 +296,18 @@ impl LooperWallet {
         internal_tapkey: XOnlyPublicKey,
     ) -> TaprootSpendInfo {
         let secp256k1 = Secp256k1::new();
-        let tr = TaprootBuilder::new()
+
+        TaprootBuilder::new()
             .add_leaf(1, htlc_script.clone())
             .unwrap()
             .add_leaf(1, timeout_script.clone())
             .unwrap()
             .finalize(&secp256k1, internal_tapkey)
-            .unwrap();
-
-        tr
+            .unwrap()
     }
 
     fn new_unspendable_internal_key() -> (XOnlyPublicKey, SecretKey) {
+        // FROM BIP342
         let pk_h = PublicKey::from_str(
             "0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
         )

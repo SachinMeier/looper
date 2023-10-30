@@ -122,6 +122,6 @@ pub struct LoopOut {
 pub struct FullLoopOutData {
     pub loop_out: LoopOut,
     pub script: Script,
-    pub utxos: Vec<UTXO>,
+    pub utxo: UTXO,
     pub invoice: Invoice,
 }

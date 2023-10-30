@@ -54,7 +54,7 @@ pub async fn new_loop_out(
     loop_out_svc: &rocket::State<LoopOutService>,
     loop_out: Json<LoopOutRequest>,
 ) -> Json<LoopOutResponse> {
-    let (resp, _idx) = loop_out_svc
+    let resp = loop_out_svc
         .handle_loop_out_request(loop_out.into_inner())
         .await;
 
