@@ -13,7 +13,7 @@ use diesel::{AsExpression, FromSqlRow};
 //     Cancelled,
 // }
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone)]
 #[diesel(belongs_to(LoopOut))]
 #[table_name = "invoices"]
 pub struct NewInvoice<'a> {
@@ -41,7 +41,7 @@ pub struct Invoice {
 
 // Scripts
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone)]
 #[diesel(belongs_to(LoopOut))]
 #[table_name = "scripts"]
 pub struct NewScript<'a> {
@@ -78,7 +78,7 @@ pub struct Script {
 
 // UTXOs
 
-#[derive(Insertable, Associations)]
+#[derive(Insertable, Associations, Clone)]
 #[diesel(belongs_to(Script))]
 #[table_name = "utxos"]
 pub struct NewUTXO<'a> {
@@ -103,7 +103,7 @@ pub struct UTXO {
 
 // Loop Outs
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone)]
 #[table_name = "loop_outs"]
 pub struct NewLoopOut {
     pub state: String,

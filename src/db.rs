@@ -245,6 +245,29 @@ impl DB {
         }
     }
 
+    // unused for now, but a first attempt at db transactions
+    // Insert Full Loop Out Data
+    pub fn insert_full_loop_out_data(
+        self,
+        conn: &mut PgConnection,
+        loop_out: NewLoopOut,
+        invoice: &mut NewInvoice,
+        script: &mut NewScript,
+        utxo: &mut NewUTXO,
+    ) -> Result<FullLoopOutData, diesel::result::Error> {
+        let loop_out = self.insert_loop_out(conn, loop_out)?;
+        invoice.loop_out_id = loop_out.id;
+        let invoice = self.insert_invoice(conn, invoice.clone())?;
+        script.loop_out_id = loop_out.id;
+        let script = self.insert_script(conn, script.clone())?;
+        utxo.script_id = script.id;
+        let utxo = self.insert_utxo(conn, utxo.clone())?;
+
+        Ok(Self::new_full_loop_out_data(
+            loop_out, invoice, script, utxo,
+        ))
+    }
+
     pub fn new_full_loop_out_data(
         loop_out: LoopOut,
         invoice: Invoice,

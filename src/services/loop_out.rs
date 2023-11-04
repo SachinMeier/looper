@@ -264,6 +264,7 @@ impl LoopOutService {
         }
     }
 
+    // unused for now, but a first attempt at db transactions
     async fn do_loop_out_request(
         &self,
         conn: &mut PgConnection,
@@ -341,7 +342,7 @@ impl LoopOutService {
         let wallet = self.wallet.lock().await;
         // create new pubkey
         // TODO: use max local_pubkey_index from db
-        let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey();
+        let (looper_pubkey, looper_pubkey_idx) = (*wallet).new_pubkey().unwrap();
         // TODO: sync here to get proper height?
         let curr_height = (*wallet).get_height().unwrap();
         log::info!("curr_height: {}", curr_height);
@@ -355,7 +356,8 @@ impl LoopOutService {
         hex::decode_to_slice(&payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
 
         let (tr, tweak) =
-            LooperWallet::new_htlc(*buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry);
+            LooperWallet::new_htlc(*buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry)
+                .unwrap();
 
         let address = self.p2tr_address(&tr);
 
@@ -403,15 +405,17 @@ impl LoopOutService {
     ) -> Result<bitcoin::Transaction, LooperErrorResponse> {
         let wallet = self.wallet.lock().await;
         let fee_rate = (*wallet).estimate_fee_rate(TARGET_CONFS).unwrap();
-        let tx = (*wallet).send_to_address(address, amount, fee_rate)?;
+        let tx = (*wallet)
+            .send_to_address(address, amount, fee_rate)
+            .unwrap();
         mem::drop(wallet);
         Ok(tx)
     }
 
     async fn broadcast_tx(&self, tx: &bitcoin::Transaction) -> Result<(), LooperErrorResponse> {
         let wallet = self.wallet.lock().await;
-
-        (*wallet).broadcast_tx(tx)
+        (*wallet).broadcast_tx(tx).unwrap();
+        Ok(())
     }
 
     fn p2tr_address(&self, tr: &TaprootSpendInfo) -> Address {

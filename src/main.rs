@@ -32,7 +32,7 @@ async fn run() {
 
     let db = DB::new(&cfg);
 
-    let wallet = wallet::LooperWallet::new(&cfg);
+    let wallet = wallet::LooperWallet::new(&cfg).unwrap();
 
     let lndg = LNDGateway::new().await;
 
