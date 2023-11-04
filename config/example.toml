@@ -1,0 +1,39 @@
+# polar
+# [bitcoin]
+# network = "regtest"
+# url = "http://127.0.0.1:18444"
+# user = "polaruser"
+# pass = "polarpass"
+# dbpath = "./data/looper"
+
+# [lnd]
+# address = "https://localhost:10002" 
+# cert_path = "/Users/sachinmeier/.polar/networks/2/volumes/lnd/bob/tls.cert" 
+# macaroon_path = "/Users/sachinmeier/.polar/networks/2/volumes/lnd/bob/data/chain/bitcoin/regtest/admin.macaroon"
+
+# bitcoind
+[bitcoin]
+network = "regtest"
+url = "http://127.0.0.1:18443"
+user = "user"
+pass = "pass"
+dbpath = "./data/looper"
+
+# lnd_end
+[lnd]
+address = "https://localhost:10009"
+cert_path = "/path/to/tls.cert"
+macaroon_path = "/path/to/admin.macaroon"
+
+[db]
+name = "looper"
+host = "localhost"
+port = "5432"
+user = "postgres"
+pass = "postgres"
+
+[loopout]
+min = 1000
+max = 100000000
+cltv = 210
+fee = 0
