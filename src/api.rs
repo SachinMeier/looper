@@ -56,7 +56,8 @@ pub async fn new_loop_out(
 ) -> Json<LoopOutResponse> {
     let resp = loop_out_svc
         .handle_loop_out_request(loop_out.into_inner())
-        .await;
+        .await
+        .unwrap();
 
     Json(resp)
 }

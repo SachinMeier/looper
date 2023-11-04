@@ -220,39 +220,53 @@ impl LoopOutService {
         }
     }
 
-    pub async fn handle_loop_out_request(&self, req: LoopOutRequest) -> LoopOutResponse {
+    pub async fn handle_loop_out_request(
+        &self,
+        req: LoopOutRequest,
+    ) -> Result<LoopOutResponse, LooperErrorResponse> {
         self.validate_request(&req).unwrap();
         log::info!("validated request");
         let buyer_pubkey: XOnlyPublicKey = XOnlyPublicKey::from_str(&req.pubkey).unwrap();
         let fee = self.calculate_loop_out_fee(&req.amount);
         let invoice_amount = req.amount + fee;
 
-        let conn = self.db.new_async_conn().await;
-        // TODO completely broken
-        let data = conn
-            .transaction(|conn| {
-                Box::pin(async {
-                    self.do_loop_out_request(conn, req.amount, fee, invoice_amount, buyer_pubkey)
-                        .await
-                        .map_err(|e| {
-                            // log::error!("error: {:?}", e);
-                            diesel::result::Error::RollbackTransaction
-                        }) as Result<FullLoopOutData, diesel::result::Error>
-                })
-            })
+        let mut conn = self.db.new_conn();
+
+        let loop_out = self.add_loop_out(&mut conn);
+
+        let invoice = self
+            .add_invoice(&mut conn, &loop_out.id, invoice_amount)
+            .await
+            .unwrap();
+
+        let script = self
+            .add_onchain_htlc(
+                &mut conn,
+                &loop_out.id,
+                &buyer_pubkey,
+                &invoice.payment_hash,
+            )
             .await;
 
-        match data {
-            Ok(data) => Self::map_loop_out_data_to_response(data),
-            Err(e) => LoopOutResponse::new_error(
-                format!("failed to handle loop out request: {}", e).to_string(),
-            ),
+        // TODO: save to dB BEFORE broadcasting tx
+        let (utxo, tx) = self
+            .add_utxo_to_htlc(&mut conn, script.id, &script.address, req.amount as u64)
+            .await;
+
+        let full_loop_out_data = DB::new_full_loop_out_data(loop_out, invoice, script, utxo);
+
+        match self.broadcast_tx(&tx).await {
+            Ok(_) => {
+                log::info!("broadcasted tx");
+                Ok(Self::map_loop_out_data_to_response(full_loop_out_data))
+            }
+            Err(e) => Err(e),
         }
     }
 
     async fn do_loop_out_request(
         &self,
-        conn: &mut AsyncPgConnection,
+        conn: &mut PgConnection,
         utxo_amount: i64,
         _fee: i64,
         invoice_amount: i64,
@@ -295,7 +309,7 @@ impl LoopOutService {
 
     async fn add_invoice(
         &self,
-        conn: &mut AsyncPgConnection,
+        conn: &mut PgConnection,
         loop_out_id: &i64,
         amount: i64,
     ) -> Result<Invoice, diesel::result::Error> {
@@ -318,7 +332,7 @@ impl LoopOutService {
 
     async fn add_onchain_htlc(
         &self,
-        conn: &mut AsyncPgConnection,
+        conn: &mut PgConnection,
         loop_out_id: &i64,
         buyer_pubkey: &XOnlyPublicKey,
         payment_hash: &String,
@@ -363,7 +377,7 @@ impl LoopOutService {
 
     async fn add_utxo_to_htlc(
         &self,
-        conn: &mut AsyncPgConnection,
+        conn: &mut PgConnection,
         script_id: i64,
         address: &str,
         amount: u64,

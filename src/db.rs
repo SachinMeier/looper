@@ -62,16 +62,16 @@ impl DB {
         connect(&self.cfg)
     }
 
-    pub async fn new_async_conn(&self) -> AsyncPgConnection {
-        let database_url = build_db_connection_string(&self.cfg);
-        AsyncPgConnection::establish(&database_url)
-            .await
-            .expect(&format!("Error connecting to {}", database_url))
-    }
+    // pub async fn new_async_conn(&self) -> AsyncPgConnection {
+    //     let database_url = build_db_connection_string(&self.cfg);
+    //     AsyncPgConnection::establish(&database_url)
+    //         .await
+    //         .expect(&format!("Error connecting to {}", database_url))
+    // }
 
-    pub fn new_tx(&self) -> TransactionBuilder<PgConnection> {
-        self.new_conn().build_transaction().read_committed()
-    }
+    // pub fn new_tx(&self) -> TransactionBuilder<PgConnection> {
+    //     self.new_conn().build_transaction().read_committed()
+    // }
 
     // TODO: make an interface (trait) and implement for DB separately?
 
