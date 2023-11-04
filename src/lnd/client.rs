@@ -1,5 +1,5 @@
 use crate::settings;
-use crate::utils::utils;
+use crate::utils;
 use hex;
 use rand::Rng;
 use std::{collections::HashMap, thread};
@@ -26,27 +26,37 @@ pub struct LNDConfig {
 
 const DEFAULT_INVOICE_LIFETIME: u64 = 86400;
 
-pub fn get_lnd_config(cfg: &settings::Config) -> LNDConfig {
+pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayError> {
     let invoice_lifetime = match cfg.get("lnd.invoice_lifetime") {
         Ok(v) => v,
         Err(_) => DEFAULT_INVOICE_LIFETIME,
     };
-    LNDConfig {
-        address: cfg.get("lnd.address").unwrap(),
-        cert_path: cfg.get("lnd.cert_path").unwrap(),
-        macaroon_path: cfg.get("lnd.macaroon_path").unwrap(),
+
+    let address = cfg
+        .get("lnd.address")
+        .map_err(|e| LNDGatewayError::new(format!("lnd.address not set: {:?}", e.to_string())))?;
+    let cert_path = cfg
+        .get("lnd.cert_path")
+        .map_err(|e| LNDGatewayError::new(format!("lnd.cert_path not set: {:?}", e.to_string())))?;
+    let macaroon_path = cfg.get("lnd.macaroon_path").map_err(|e| {
+        LNDGatewayError::new(format!("lnd.macaroon_path not set: {:?}", e.to_string()))
+    })?;
+
+    Ok(LNDConfig {
+        address,
+        cert_path,
+        macaroon_path,
         invoice_lifetime: invoice_lifetime as i64,
-    }
+    })
 }
 
-pub async fn new_client(cfg: LNDConfig) -> Client {
+pub async fn new_client(cfg: LNDConfig) -> Result<Client, fedimint_tonic_lnd::ConnectError> {
     fedimint_tonic_lnd::connect(
         cfg.address.clone(),
         cfg.cert_path.clone(),
         cfg.macaroon_path.clone(),
     )
     .await
-    .unwrap()
 }
 
 pub struct LNDGateway {
@@ -63,16 +73,21 @@ pub struct AddInvoiceResp {
 }
 
 impl LNDGateway {
-    pub async fn new() -> Self {
+    pub async fn new() -> Result<Self, LNDGatewayError> {
         let app_cfg = settings::build_config().expect("failed to build config");
-        let ln_cfg = get_lnd_config(&app_cfg);
+        let ln_cfg = get_lnd_config(&app_cfg)?;
 
-        let client = new_client(ln_cfg.clone()).await;
+        let client = new_client(ln_cfg.clone()).await.map_err(|e| {
+            LNDGatewayError::new(format!(
+                "failed to connect to lnd: {:?} {:?}",
+                ln_cfg.address, e
+            ))
+        })?;
 
-        Self {
+        Ok(Self {
             cfg: ln_cfg,
             client: Mutex::new(client),
-        }
+        })
     }
 
     async fn get_client(&self) -> tokio::sync::MutexGuard<'_, Client> {
@@ -260,12 +275,7 @@ impl LNDGateway {
     }
 
     pub fn new_preimage() -> ([u8; 32], [u8; 32]) {
-        let mut rng = rand::thread_rng();
-
-        let mut preimage: [u8; 32] = [0; 32];
-        for i in 0..32 {
-            preimage[i] = rng.gen::<u8>();
-        }
+        let preimage: [u8; 32] = utils::rand_32_bytes();
         let payment_hash = utils::sha256(&preimage);
 
         (preimage, payment_hash)
@@ -273,13 +283,17 @@ impl LNDGateway {
 
     // TODO move this to a general new_32_byte_array function
     pub fn new_payment_addr() -> [u8; 32] {
-        let mut rng = rand::thread_rng();
+        utils::rand_32_bytes()
+    }
+}
 
-        let mut payment_addr: [u8; 32] = [0; 32];
-        for i in 0..32 {
-            payment_addr[i] = rng.gen::<u8>();
-        }
+// TODO: should we make every method return this error or is fedimint_tonic_lnd::Error sufficient?
+pub struct LNDGatewayError {
+    pub msg: String,
+}
 
-        payment_addr
+impl LNDGatewayError {
+    pub fn new(msg: String) -> Self {
+        Self { msg }
     }
 }

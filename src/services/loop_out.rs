@@ -27,14 +27,11 @@ use hex::ToHex;
 use std::mem;
 
 use diesel::pg::TransactionBuilder;
-use diesel_async::pg::AsyncPgConnection;
-use diesel_async::AsyncConnection;
+use diesel_async::{pg::AsyncPgConnection, AsyncConnection};
 use http::status::StatusCode;
-use rocket::serde::json::Json;
-use rocket::serde::{Deserialize, Serialize};
+use rocket::serde::{json::Json, Deserialize, Serialize};
 use std::str::FromStr;
-use tokio::runtime;
-use tokio::sync::Mutex;
+use tokio::{runtime, sync::Mutex};
 
 use crate::{
     db::DB,

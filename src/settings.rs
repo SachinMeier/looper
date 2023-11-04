@@ -1,9 +1,9 @@
 use std::env;
 use std::sync::Once;
 
-use config::{ConfigError, Environment, File};
+use config::{Environment, File};
 
-pub use config::Config;
+pub use config::{Config, ConfigError};
 
 static INIT: Once = Once::new();
 
