@@ -45,7 +45,7 @@ jobs:
 
       # setup diesel DB
       - name: Install diesel cli
-        run: cargo install diesel_cli --no-default-features --features postgres
+        run: cargo install diesel_cli --no-default-features --features postgres || true
       - name: Setup database
         run: diesel database setup
       - name: Run tests
