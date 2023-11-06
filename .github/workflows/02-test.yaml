@@ -1,0 +1,39 @@
+name: Lint
+
+on:
+  - workflow_call
+
+
+env:
+  CARGO_TERM_COLOR: always
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/looper_test
+  PROFILE: test
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.4
+        ports: ['5432:5432']
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_DATABASE_NAME: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      # setup diesel DB
+      - name: Install diesel cli
+        run: cargo install diesel_cli --no-default-features --features postgres
+      - name: Setup database
+        run: diesel database setup
+      - name: Run tests
+        run: cargo test --verbose --lib 
