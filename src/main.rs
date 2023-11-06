@@ -39,9 +39,9 @@ async fn run() {
 
     let lndg = LNDGateway::new().await.unwrap();
 
-    let loopout_svc = services::loop_out::LoopOutService::new(&cfg, db, wallet, lndg);
+    let loopout_svc = services::loop_out::LoopOutService::new(&cfg, db, wallet, lndg).unwrap();
 
-    let server = api::LooperServer::new(loopout_svc);
+    let server = api::server::LooperServer::new(loopout_svc);
     server.start();
 
     let stdin = io::stdin();
