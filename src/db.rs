@@ -315,11 +315,7 @@ pub(crate) mod tests {
         settings,
     };
     use once_cell::sync::Lazy;
-    use std::{
-        str::FromStr,
-        sync::Once,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::sync::Once;
 
     static INIT: Once = Once::new();
     static DB: Lazy<DB> = Lazy::new(|| {
@@ -332,7 +328,8 @@ pub(crate) mod tests {
             let conn = &mut DB
                 .get_conn()
                 .expect("failed to create test db connection pool");
-            super::run_migrations(conn);
+            let migration_res = super::run_migrations(conn);
+            assert!(migration_res.is_ok());
             truncate_tables(conn);
         });
     }
