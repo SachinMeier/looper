@@ -10,7 +10,7 @@ env:
   PROFILE: test
 
 jobs:
-  lint:
+  unit:
     runs-on: ubuntu-latest
     services:
       postgres:
