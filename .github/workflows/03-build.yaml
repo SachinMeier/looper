@@ -1,0 +1,12 @@
+# nothing for now
+name: Build
+
+on:
+    - workflow_call
+
+jobs:
+    noop:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Noop
+              run: echo "implement me"

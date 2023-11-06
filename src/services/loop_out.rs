@@ -1,44 +1,20 @@
-use bdk::{
-    bitcoin::{
-        bip32::{ChildNumber, ExtendedPrivKey, ExtendedPubKey},
-        blockdata::{
-            locktime::absolute::LockTime, opcodes, script, script::PushBytes, transaction::OutPoint,
-        },
-        hashes::{sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
-        secp256k1::{
-            self, rand::thread_rng, KeyPair, Parity, PublicKey, Secp256k1, SecretKey,
-            XOnlyPublicKey,
-        },
-        taproot,
-        taproot::{TaprootBuilder, TaprootSpendInfo},
-        Address, Network, ScriptBuf,
-    },
-    bitcoincore_rpc::Queryable,
-    blockchain::{ConfigurableBlockchain, RpcBlockchain, RpcConfig},
-    database::SqliteDatabase,
-    descriptor::Descriptor,
-    wallet::{wallet_name_from_descriptor, AddressIndex, AddressInfo},
-    Balance,
-    KeychainKind::{self, External, Internal},
-    SyncOptions, Wallet,
+use bdk::bitcoin::{
+    secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey},
+    taproot::TaprootSpendInfo,
+    Address, Network,
 };
-use hex::ToHex;
 use std::mem;
 
-use diesel::pg::TransactionBuilder;
 // use diesel_async::{pg::AsyncPgConnection, AsyncConnection};
 use http::status::StatusCode;
-use rocket::serde::{json::Json, Deserialize, Serialize};
+use rocket::serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use tokio::{runtime, sync::Mutex};
+use tokio::sync::Mutex;
 
 use crate::{
-    db::{self, PooledConnection, DB},
-    lnd::{
-        self,
-        client::{AddInvoiceResp, LNDGateway},
-    },
-    models::{self, FullLoopOutData, Invoice, NewInvoice, NewScript, NewUTXO, Script, UTXO},
+    db::{self, DB},
+    lnd::client::LNDGateway,
+    models::{self, FullLoopOutData, Invoice, NewInvoice, NewScript, NewUTXO, Script, Utxo},
     services::errors::{LooperError, LooperErrorResponse},
     settings,
     wallet::LooperWallet,
@@ -63,6 +39,7 @@ pub struct TaprootScriptInfo {
     pub tree: Vec<String>,
 }
 
+#[allow(dead_code)]
 fn new_taproot_script_info(tsi: &TaprootSpendInfo, tweak: SecretKey) -> TaprootScriptInfo {
     TaprootScriptInfo {
         external_key: tsi.output_key().to_string(),
@@ -105,6 +82,7 @@ pub struct LoopOutResponse {
 }
 
 impl LoopOutResponse {
+    #[allow(dead_code)]
     pub fn new_error(msg: String) -> Self {
         LoopOutResponse {
             invoice: "".to_string(),
@@ -164,7 +142,7 @@ impl LoopOutService {
 
     pub fn get_loop_out(&self, payment_hash: String) -> LoopOutResponse {
         // TODO: err handle
-        let mut conn = &mut self.db.new_conn().unwrap();
+        let conn = &mut self.db.get_conn().unwrap();
         let data = db::get_full_loop_out(conn, payment_hash).unwrap();
 
         Self::map_loop_out_data_to_response(data)
@@ -175,7 +153,8 @@ impl LoopOutService {
         let cltv_expiry = data.script.cltv_expiry as u32;
         let address = data.script.address.clone();
         let looper_pubkey = data.script.local_pubkey.clone();
-        let resp = LoopOutResponse {
+
+        LoopOutResponse {
             invoice: data.invoice.payment_request,
             address,
             looper_pubkey,
@@ -189,9 +168,7 @@ impl LoopOutService {
                 cltv_expiry,
             }),
             error: None,
-        };
-
-        resp
+        }
     }
 
     fn script_to_taproot_script_info(script: Script) -> TaprootScriptInfo {
@@ -221,7 +198,7 @@ impl LoopOutService {
         let fee = self.calculate_loop_out_fee(&req.amount);
         let invoice_amount = req.amount + fee;
 
-        let conn = &mut self.db.new_conn().unwrap();
+        let conn = &mut self.db.get_conn().unwrap();
 
         let loop_out = self.add_loop_out(conn);
 
@@ -251,6 +228,7 @@ impl LoopOutService {
     }
 
     // unused for now, but a first attempt at db transactions
+    #[allow(dead_code)]
     async fn do_loop_out_request(
         &self,
         conn: &mut db::PooledConnection,
@@ -311,7 +289,7 @@ impl LoopOutService {
             payment_hash: &invoice.payment_hash,
             payment_preimage: Some(&invoice.preimage),
             amount,
-            state: lnd::InvoiceOpen.to_string(),
+            state: models::INVOICE_STATE_OPEN.to_string(),
         };
 
         db::insert_invoice(conn, new_invoice)
@@ -339,7 +317,7 @@ impl LoopOutService {
         // Unlock wallet
 
         let mut payhash_bytes = [0u8; 32];
-        hex::decode_to_slice(&payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
+        hex::decode_to_slice(payment_hash, &mut payhash_bytes as &mut [u8]).unwrap();
 
         let (tr, tweak) =
             LooperWallet::new_htlc(*buyer_pubkey, looper_pubkey, &payhash_bytes, cltv_expiry)
@@ -369,7 +347,7 @@ impl LoopOutService {
         script_id: i64,
         address: &str,
         amount: u64,
-    ) -> (UTXO, bitcoin::Transaction) {
+    ) -> (Utxo, bitcoin::Transaction) {
         let tx = self.build_tx_to_address(address, amount).await.unwrap();
         let txid = tx.txid();
         let utxo = NewUTXO {

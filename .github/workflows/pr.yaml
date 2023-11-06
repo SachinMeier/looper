@@ -1,0 +1,29 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/looper_test
+  PROFILE: test
+
+jobs:
+  lint:
+    name: Lint
+    uses: ./.github/workflows/01-lint.yaml
+    # permissions:
+    #   contents: read
+    #   id-token: write
+    # secrets: inherit
+
+  test:
+    name: Test
+    uses: ./.github/workflows/02-test.yaml
+
+  build:
+    name: Build
+    uses: ./.github/workflows/03-build.yaml

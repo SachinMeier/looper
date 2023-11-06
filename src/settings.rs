@@ -31,6 +31,6 @@ pub fn build_test_config() -> Result<Config, ConfigError> {
 
 pub fn init_logging() {
     INIT.call_once(|| {
-        let _ = log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
+        log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
     });
 }

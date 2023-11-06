@@ -1,0 +1,6 @@
+[db]
+name = "looper_test"
+host = "localhost"
+port = "5432"
+user = "postgres"
+pass = "postgres"
