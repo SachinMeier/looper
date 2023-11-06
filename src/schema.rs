@@ -57,9 +57,4 @@ diesel::joinable!(invoices -> loop_outs (loop_out_id));
 diesel::joinable!(scripts -> loop_outs (loop_out_id));
 diesel::joinable!(utxos -> scripts (script_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    invoices,
-    loop_outs,
-    scripts,
-    utxos,
-);
+diesel::allow_tables_to_appear_in_same_query!(invoices, loop_outs, scripts, utxos);

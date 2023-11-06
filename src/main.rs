@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate rocket;
 
-#[macro_use]
-extern crate diesel;
+// #[macro_use]
+// extern crate diesel;
 
 mod api;
 mod db;
@@ -15,12 +15,12 @@ mod utils;
 pub mod wallet;
 
 use crate::lnd::client::LNDGateway;
-use bdk::bitcoin::secp256k1::PublicKey;
+// use bdk::bitcoin::secp256k1::PublicKey;
 use db::DB;
 use std::io::{self, BufRead};
-use std::str::FromStr;
+// use std::str::FromStr;
 
-use rand::Rng;
+// use rand::Rng;
 
 #[tokio::main]
 async fn main() {

@@ -1,11 +1,11 @@
 use crate::schema::{invoices, loop_outs, scripts, utxos};
-use diesel::deserialize::FromSql;
-use diesel::pg::sql_types::Jsonb;
-use diesel::pg::Pg;
+// use diesel::deserialize::FromSql;
+// use diesel::pg::sql_types::Jsonb;
+// use diesel::pg::Pg;
 use diesel::prelude::*;
-use diesel::serialize::{Output, ToSql};
-use diesel::sql_types::Array;
-use diesel::{AsExpression, FromSqlRow};
+// use diesel::serialize::{Output, ToSql};
+// use diesel::sql_types::Array;
+// use diesel::{AsExpression, FromSqlRow};
 
 // pub enum InvoiceState {
 //     Open,
