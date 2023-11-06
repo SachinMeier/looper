@@ -1,16 +1,3 @@
-# polar
-# [bitcoin]
-# network = "regtest"
-# url = "http://127.0.0.1:18444"
-# user = "polaruser"
-# pass = "polarpass"
-# dbpath = "./data/looper"
-
-# [lnd]
-# address = "https://localhost:10002" 
-# cert_path = "/Users/sachinmeier/.polar/networks/2/volumes/lnd/bob/tls.cert" 
-# macaroon_path = "/Users/sachinmeier/.polar/networks/2/volumes/lnd/bob/data/chain/bitcoin/regtest/admin.macaroon"
-
 # bitcoind
 [bitcoin]
 network = "regtest"
