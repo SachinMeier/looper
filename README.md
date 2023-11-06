@@ -46,3 +46,30 @@ Currently, only the server is in a working state. The client (code at `/client`)
     "pubkey": "<32-byte X-only pubkey>"
 }
 ```
+
+## Flow
+
+This is how a LoopOut flow works.
+
+1. Buyer/Client requests Loop out from Seller/Server, provides pubkey `B` and an amount.
+    - pubkey B
+    - Amount
+2. Seller creates invoice for the LoopOut with the value of `amount + fee`, creates pubkey `S`, creates Taproot tree with two scripts:
+    `B + Preimage` and `S + CLTV timeout`. Seller returns the following data:
+    - pubkey S
+    - tweak r
+    - taproot SpendInfo
+        - external key
+        - Internal Key
+        - Tree = {B + Preimage, S + timeout}
+    - invoice 
+    - CLTV timeout for the UTXO
+    FUTURE - optional init invoice with amount ~= onchain_fee + loop_fee
+3. Buyer waits until output to script is confirmed. He must also verify the following
+    - He can fully reconstruct the Taproot output script from the data provided by the Seller and his own pubkey `B`. This verifies that the correct pubkeys were used, that the payment hash and pubkey `B` allow him to spend the UTXO, and that the CLTV timeout is correct.
+    - The payment hash in the invoice matches the hash in the Taproot output script.
+    - The Internal Tapkey is provably unspendable.
+    - The CLTV timeout is more than the invoice's minimum CLTV delta blocks in the future, optimistically showing that the Seller cannot hold on to the invoice long enough to potentially claim the LN payment  and steal the UTXO via timeout script. 
+4. Buyer pays invoice, receives preimage
+5. Buyer claims UTXO onchain
+FUTURE 5. Optionally Buyer requests cooperation to move funds to a new address using MuSig2 in the Internal key. Otherwise spends B+preimage
