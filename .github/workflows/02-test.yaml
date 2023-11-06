@@ -1,4 +1,4 @@
-name: Lint
+name: Test
 
 on:
   - workflow_call
@@ -10,7 +10,7 @@ env:
   PROFILE: test
 
 jobs:
-  lint:
+  unit:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -39,9 +39,9 @@ jobs:
             ~/.cargo/registry/cache/ 
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-looper-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-looper-
 
       # setup diesel DB
       - name: Install diesel cli

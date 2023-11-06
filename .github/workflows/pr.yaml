@@ -22,8 +22,12 @@ jobs:
 
   test:
     name: Test
+    # just to optimize dependency cache usage
+    needs: lint
     uses: ./.github/workflows/02-test.yaml
 
   build:
     name: Build
+    # just to optimize dependency cache usage
+    needs: test
     uses: ./.github/workflows/03-build.yaml
