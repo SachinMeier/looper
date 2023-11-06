@@ -288,6 +288,7 @@ impl LNDGateway {
 }
 
 // TODO: should we make every method return this error or is fedimint_tonic_lnd::Error sufficient?
+#[derive(Debug)]
 pub struct LNDGatewayError {
     pub msg: String,
 }

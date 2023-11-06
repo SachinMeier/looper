@@ -34,7 +34,7 @@ async fn run() {
 
     let wallet = wallet::LooperWallet::new(&cfg).unwrap();
 
-    let lndg = LNDGateway::new().await;
+    let lndg = LNDGateway::new().await.unwrap();
 
     let loopout_svc = services::loop_out::LoopOutService::new(&cfg, db, wallet, lndg);
 

@@ -18,6 +18,17 @@ pub fn build_config() -> Result<Config, ConfigError> {
         .build()
 }
 
+pub fn build_test_config() -> Result<Config, ConfigError> {
+    let profile = env::var("PROFILE").unwrap_or_else(|_| "local".into());
+    log::info!("loading config for {}", profile);
+
+    Config::builder()
+        .add_source(File::with_name("config/test"))
+        .add_source(File::with_name(&format!("config/{}", profile)).required(false))
+        .add_source(Environment::with_prefix("RLS").separator("_"))
+        .build()
+}
+
 pub fn init_logging() {
     INIT.call_once(|| {
         let _ = log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();

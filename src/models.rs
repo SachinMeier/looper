@@ -13,6 +13,10 @@ use diesel::{AsExpression, FromSqlRow};
 //     Cancelled,
 // }
 
+pub const INVOICE_STATE_OPEN: &str = "OPEN";
+pub const INVOICE_STATE_SETTLED: &str = "SETTLED";
+pub const INVOICE_STATE_CANCELLED: &str = "CANCELLED";
+
 #[derive(Insertable, Clone)]
 #[diesel(belongs_to(LoopOut))]
 #[table_name = "invoices"]
@@ -102,6 +106,15 @@ pub struct UTXO {
 }
 
 // Loop Outs
+
+/// LOOP_OUT_STATE_INITIATED should be set when the server has registered the loop out and returned the swap invoice.
+pub const LOOP_OUT_STATE_INITIATED: &str = "INITIATED";
+/// LOOP_OUT_STATE_CONFIRMED should be set when the funding transaction is confirmed onchain.
+pub const LOOP_OUT_STATE_CONFIRMED: &str = "CONFIRMED";
+/// LOOP_OUT_STATE_CLAIMED should be set when the server has seen the claim transaction in the mempool or confirmed onchain.
+pub const LOOP_OUT_STATE_CLAIMED: &str = "CLAIMED";
+/// LOOP_OUT_STATE_TIMEOUT should be set when the server has broadcast the timeout spend back to the server's wallet.
+pub const LOOP_OUT_STATE_TIMEOUT: &str = "TIMEOUT";
 
 #[derive(Insertable, Clone)]
 #[table_name = "loop_outs"]
