@@ -1,14 +1,11 @@
 use crate::models::{
-    FullLoopOutData, Invoice, LoopOut, NewInvoice, NewLoopOut, NewScript, NewUTXO, Script, UTXO,
+    FullLoopOutData, Invoice, LoopOut, NewInvoice, NewLoopOut, NewScript, NewUTXO, Script, Utxo,
 };
-use crate::{lnd, settings};
+use crate::settings;
 use diesel::{
-    deserialize::FromSql,
-    pg::{sql_types::Jsonb, Pg, TransactionBuilder},
+    pg::Pg,
     prelude::*,
     r2d2::{self, ConnectionManager, Pool},
-    serialize::{Output, ToSql},
-    sql_types::Array,
 };
 
 // use diesel_async::pg::AsyncPgConnection;
@@ -39,7 +36,7 @@ pub fn create_connection_pool(cfg: &settings::Config) -> ConnectionPool {
     Pool::builder()
         .max_size(10)
         .build(manager)
-        .expect(&format!("Failed to create pool for {}", database_url))
+        .unwrap_or_else(|_| panic!("failed to create pool for {}", database_url))
 }
 
 // Runs the embedded database migrations.
@@ -67,9 +64,11 @@ fn get_db_config(cfg: &settings::Config) -> DBConfig {
     }
 }
 
+#[allow(dead_code)]
 pub fn connect(cfg: &DBConfig) -> PgConnection {
     let database_url = build_db_connection_string(cfg);
-    PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
+    PgConnection::establish(&database_url)
+        .unwrap_or_else(|e| panic!("error connecting to {}: {:?}", database_url, e.to_string()))
 }
 
 fn build_db_connection_string(cfg: &DBConfig) -> String {
@@ -91,7 +90,7 @@ impl DB {
         Self { cfg: db_cfg, pool }
     }
 
-    pub fn new_conn(&self) -> Result<PooledConnection, diesel::r2d2::PoolError> {
+    pub fn get_conn(&self) -> Result<PooledConnection, diesel::r2d2::PoolError> {
         self.pool.get()
     }
 
@@ -124,6 +123,7 @@ pub fn insert_invoice(
     Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn update_invoice(
     conn: &mut PooledConnection,
     invoice: Invoice,
@@ -138,6 +138,7 @@ pub fn update_invoice(
     Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn get_invoice(
     conn: &mut PooledConnection,
     invoice_id: i64,
@@ -149,6 +150,7 @@ pub fn get_invoice(
     Ok(invoice)
 }
 
+#[allow(dead_code)]
 pub fn list_invoices_in_state(
     conn: &mut PooledConnection,
     invoice_state: String,
@@ -177,6 +179,7 @@ pub fn insert_script(
     Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn get_script(
     conn: &mut PooledConnection,
     script_id: i64,
@@ -193,7 +196,7 @@ pub fn get_script(
 pub fn insert_utxo(
     conn: &mut PooledConnection,
     utxo: NewUTXO,
-) -> Result<UTXO, diesel::result::Error> {
+) -> Result<Utxo, diesel::result::Error> {
     use crate::schema::utxos::dsl::*;
 
     let res = diesel::insert_into(utxos)
@@ -204,10 +207,11 @@ pub fn insert_utxo(
     Ok(res)
 }
 
-pub fn get_utxo(conn: &mut PooledConnection, utxo_id: i64) -> Result<UTXO, diesel::result::Error> {
+#[allow(dead_code)]
+pub fn get_utxo(conn: &mut PooledConnection, utxo_id: i64) -> Result<Utxo, diesel::result::Error> {
     use crate::schema::utxos::dsl::*;
 
-    let utxo = utxos.filter(id.eq(utxo_id)).first::<UTXO>(conn)?;
+    let utxo = utxos.filter(id.eq(utxo_id)).first::<Utxo>(conn)?;
 
     Ok(utxo)
 }
@@ -228,6 +232,7 @@ pub fn insert_loop_out(
     Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn get_loop_out(
     conn: &mut PooledConnection,
     loop_out_id: i64,
@@ -243,7 +248,7 @@ pub fn get_loop_out(
 
 pub fn get_full_loop_out(
     conn: &mut PooledConnection,
-    payment_hash: String,
+    pay_hash: String,
 ) -> Result<FullLoopOutData, diesel::result::Error> {
     use crate::schema::invoices::{self, dsl::*};
     use crate::schema::loop_outs::{self, dsl::*};
@@ -254,7 +259,7 @@ pub fn get_full_loop_out(
         .left_join(invoices.on(invoices::loop_out_id.eq(loop_outs::id.nullable())))
         .left_join(scripts.on(scripts::loop_out_id.eq(loop_outs::id.nullable())))
         .left_join(utxos.on(utxos::script_id.nullable().eq(scripts::id.nullable())))
-        .filter(invoices::payment_hash.eq(payment_hash))
+        .filter(invoices::payment_hash.eq(pay_hash))
         .first(conn)?;
 
     match (invoice, script, utxo) {
@@ -267,6 +272,7 @@ pub fn get_full_loop_out(
 
 // unused for now, but a first attempt at db transactions
 // Insert Full Loop Out Data
+#[allow(dead_code)]
 pub fn insert_full_loop_out_data(
     conn: &mut PooledConnection,
     loop_out: NewLoopOut,
@@ -289,7 +295,7 @@ pub fn new_full_loop_out_data(
     loop_out: LoopOut,
     invoice: Invoice,
     script: Script,
-    utxo: UTXO,
+    utxo: Utxo,
 ) -> FullLoopOutData {
     FullLoopOutData {
         loop_out,
@@ -304,7 +310,7 @@ pub(crate) mod tests {
     use crate::{
         db::DB,
         models::{
-            self, Invoice, LoopOut, NewInvoice, NewLoopOut, NewScript, NewUTXO, Script, UTXO,
+            self, Invoice, LoopOut, NewInvoice, NewLoopOut, NewScript, NewUTXO, Script, Utxo,
         },
         settings,
     };
@@ -324,7 +330,7 @@ pub(crate) mod tests {
     fn setup_test_db() {
         INIT.call_once(|| {
             let conn = &mut DB
-                .new_conn()
+                .get_conn()
                 .expect("failed to create test db connection pool");
             super::run_migrations(conn);
             truncate_tables(conn);
@@ -342,7 +348,7 @@ pub(crate) mod tests {
     #[test]
     fn test_insert_and_select_loop_out() {
         setup_test_db();
-        let conn = &mut DB.new_conn().expect("failed to get new connection");
+        let conn = &mut DB.get_conn().expect("failed to get new connection");
 
         let loop_out = NewLoopOut {
             state: models::LOOP_OUT_STATE_INITIATED.to_string(),
@@ -368,7 +374,7 @@ pub(crate) mod tests {
     #[test]
     fn test_insert_and_select_full_loop_out() {
         setup_test_db();
-        let conn = &mut DB.new_conn().expect("failed to get new connection");
+        let conn = &mut DB.get_conn().expect("failed to get new connection");
 
         let loop_out = NewLoopOut {
             state: models::LOOP_OUT_STATE_INITIATED.to_string(),
@@ -454,7 +460,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn assert_new_utxo_matches_utxo(nu: NewUTXO, su: UTXO) {
+    fn assert_new_utxo_matches_utxo(nu: NewUTXO, su: Utxo) {
         assert_eq!(nu.txid, su.txid);
         assert_eq!(nu.vout, su.vout);
         assert_eq!(nu.amount, su.amount);

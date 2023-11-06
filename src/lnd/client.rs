@@ -1,19 +1,14 @@
 use crate::settings;
 use crate::utils;
 use hex;
-use rand::Rng;
-use std::{collections::HashMap, thread};
+use std::collections::HashMap;
 
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    oneshot, Mutex,
-};
+use tokio::sync::Mutex;
 
 use fedimint_tonic_lnd::{
     invoicesrpc,
     lnrpc::{self, FeeLimit},
-    routerrpc::{self, TrackPaymentRequest},
-    Client,
+    routerrpc, Client,
 };
 
 #[derive(Clone)]
@@ -112,6 +107,8 @@ impl LNDGateway {
         // TODO: do we have to generate this?
         let (preimage, payment_hash) = LNDGateway::new_preimage();
         let payment_addr = LNDGateway::new_payment_addr();
+        // resolves lint vs compile error dilemma
+        #[allow(deprecated)]
         let req = lnrpc::Invoice {
             memo: "looper swap out".to_string(),
             r_preimage: preimage.to_vec(),
@@ -202,7 +199,8 @@ impl LNDGateway {
         fee_limit: i64,
     ) -> Result<(), fedimint_tonic_lnd::Error> {
         let mut client = self.get_client().await;
-        // TODO: conditional logic for amt vs zero
+        // resolves lint vs compile error dilemma
+        #[allow(deprecated)]
         let req = routerrpc::SendPaymentRequest {
             payment_request: invoice,
             timeout_seconds: 600,
@@ -245,6 +243,8 @@ impl LNDGateway {
         fee_limit: i64,
     ) -> Result<lnrpc::SendResponse, fedimint_tonic_lnd::Error> {
         let mut client = self.get_client().await;
+        // resolves lint vs compile error dilemma
+        #[allow(deprecated)]
         let req = lnrpc::SendRequest {
             dest: vec![],
             dest_string: "".to_string(),

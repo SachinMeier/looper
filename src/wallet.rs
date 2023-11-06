@@ -1,45 +1,36 @@
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
-use std::thread;
+// use std::thread;
 
-use bitcoin::{address, Address, Txid};
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    oneshot, Mutex,
-};
+use bitcoin::address;
 
-use crate::services::errors::{LooperError, LooperErrorResponse};
-use http::StatusCode;
+// use crate::services::errors::{LooperError, LooperErrorResponse};
 
 use crate::settings;
 use bdk::{
     bitcoin::{
-        bip32::{ChildNumber, ExtendedPrivKey, ExtendedPubKey},
-        blockdata::{
-            locktime::absolute::LockTime,
-            opcodes, script,
-            script::PushBytes,
-            transaction::{OutPoint, Transaction},
-        },
-        hashes::{sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
-        secp256k1::{
-            rand::thread_rng, KeyPair, Parity, PublicKey, Secp256k1, SecretKey, XOnlyPublicKey,
-        },
-        taproot,
+        bip32::{ChildNumber, ExtendedPrivKey},
+        blockdata::{locktime::absolute::LockTime, opcodes, script, transaction::Transaction},
+        // hashes::{sha256::Hash as Sha256, sha256d::Hash as Sha256d, Hash},
+        secp256k1::{rand::thread_rng, KeyPair, PublicKey, Secp256k1, SecretKey, XOnlyPublicKey},
+        // taproot,
         taproot::{TaprootBuilder, TaprootSpendInfo},
-        Network, ScriptBuf,
+        Network,
+        ScriptBuf,
     },
-    blockchain::{ConfigurableBlockchain, GetHeight, GetTx, RpcBlockchain, RpcConfig, WalletSync},
-    database::SqliteDatabase,
-    descriptor::Descriptor,
+    blockchain::{ConfigurableBlockchain, GetHeight, RpcBlockchain, RpcConfig},
+    // database::SqliteDatabase,
+    // descriptor::Descriptor,
     wallet::{wallet_name_from_descriptor, AddressIndex, AddressInfo},
-    Balance, FeeRate,
-    KeychainKind::{self, External, Internal},
-    SignOptions, SyncOptions, Wallet,
+    Balance,
+    FeeRate,
+    SignOptions,
+    SyncOptions,
+    Wallet,
 };
 use bdk::{blockchain::Blockchain, sled};
-use config::{Config, Environment};
+use config::Config;
 
 pub struct LooperWallet {
     blockchain: RpcBlockchain,
@@ -126,9 +117,9 @@ impl LooperWallet {
         let addr = address::Address::from_str(address).map_err(|e| {
             WalletError::new(format!("failed to parse address: {:?}", e.to_string()))
         })?;
-        let addr = addr
-            .require_network(self.wallet.network())
-            .map_err(|e| WalletError::new(format!("invalid address: {}", address)))?;
+        let addr = addr.require_network(self.wallet.network()).map_err(|e| {
+            WalletError::new(format!("invalid address: {} {:?}", address, e.to_string()))
+        })?;
 
         Ok(addr)
     }
@@ -291,7 +282,8 @@ impl LooperWallet {
                 e.to_string()
             ))
         })?;
-        return Ok(blockchain);
+
+        Ok(blockchain)
     }
 
     pub fn new_htlc_script(claimant_pk: &XOnlyPublicKey, payment_hash: &[u8; 32]) -> ScriptBuf {
@@ -354,7 +346,7 @@ impl LooperWallet {
             .add_leaf(1, timeout_script.clone())
             .map_err(|e| WalletError::new(format!("failed to add leaf: {:?}", e.to_string())))?
             .finalize(&secp256k1, internal_tapkey)
-            .map_err(|_tb| WalletError::new(format!("failed to finalize taproot",)))
+            .map_err(|_tb| WalletError::new("failed to finalize taproot".to_string()))
     }
 
     fn new_unspendable_internal_key() -> Result<(XOnlyPublicKey, SecretKey), WalletError> {

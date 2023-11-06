@@ -32,6 +32,9 @@ async fn run() {
 
     let db = DB::new(&cfg);
 
+    let migration_conn = &mut db.get_conn().unwrap();
+    db::run_migrations(migration_conn).unwrap();
+
     let wallet = wallet::LooperWallet::new(&cfg).unwrap();
 
     let lndg = LNDGateway::new().await.unwrap();

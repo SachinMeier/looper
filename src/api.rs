@@ -1,9 +1,5 @@
-use crate::services::{
-    errors::LooperError,
-    loop_out::{LoopOutRequest, LoopOutResponse, LoopOutService},
-};
+use crate::services::loop_out::{LoopOutRequest, LoopOutResponse, LoopOutService};
 use rocket::serde::json::Json;
-use rocket::serde::{Deserialize, Serialize};
 use rocket::tokio;
 use std::thread;
 
@@ -26,7 +22,7 @@ impl LooperServer {
     }
 
     fn serve(self) {
-        let rt = thread::Builder::new()
+        thread::Builder::new()
             .name("rocket-api".to_string())
             .spawn(move || {
                 let rt = tokio::runtime::Builder::new_current_thread()

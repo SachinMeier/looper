@@ -9,8 +9,8 @@ pub fn rand_32_bytes() -> [u8; 32] {
     let mut rng = rand::thread_rng();
 
     let mut bytes: [u8; 32] = [0; 32];
-    for i in 0..32 {
-        bytes[i] = rng.gen::<u8>();
+    for b in &mut bytes {
+        *b = rng.gen::<u8>();
     }
 
     bytes

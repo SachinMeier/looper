@@ -14,12 +14,14 @@ use diesel::prelude::*;
 // }
 
 pub const INVOICE_STATE_OPEN: &str = "OPEN";
+#[allow(dead_code)]
 pub const INVOICE_STATE_SETTLED: &str = "SETTLED";
+#[allow(dead_code)]
 pub const INVOICE_STATE_CANCELLED: &str = "CANCELLED";
 
 #[derive(Insertable, Clone)]
 #[diesel(belongs_to(LoopOut))]
-#[table_name = "invoices"]
+#[diesel(table_name = invoices)]
 pub struct NewInvoice<'a> {
     pub loop_out_id: i64,
     pub payment_request: &'a str,
@@ -30,7 +32,7 @@ pub struct NewInvoice<'a> {
 }
 
 #[derive(Debug, Queryable, AsChangeset)]
-// #[table_name = "invoices"]
+#[diesel(table_name = invoices)]
 pub struct Invoice {
     pub id: i64,
     pub loop_out_id: Option<i64>,
@@ -47,7 +49,7 @@ pub struct Invoice {
 
 #[derive(Insertable, Clone)]
 #[diesel(belongs_to(LoopOut))]
-#[table_name = "scripts"]
+#[diesel(table_name = scripts)]
 pub struct NewScript<'a> {
     pub loop_out_id: i64,
     pub address: &'a str,
@@ -63,6 +65,7 @@ pub struct NewScript<'a> {
 
 #[derive(Debug, Queryable, AsChangeset)]
 #[diesel(belongs_to(LoopOut))]
+#[diesel(table_name = scripts)]
 pub struct Script {
     pub id: i64,
     pub loop_out_id: Option<i64>,
@@ -84,7 +87,7 @@ pub struct Script {
 
 #[derive(Insertable, Associations, Clone)]
 #[diesel(belongs_to(Script))]
-#[table_name = "utxos"]
+#[diesel(table_name = utxos)]
 pub struct NewUTXO<'a> {
     pub txid: &'a str,
     pub vout: i32,
@@ -94,8 +97,8 @@ pub struct NewUTXO<'a> {
 
 #[derive(Debug, Queryable, Associations, AsChangeset)]
 #[diesel(belongs_to(Script))]
-#[table_name = "utxos"]
-pub struct UTXO {
+#[diesel(table_name = utxos)]
+pub struct Utxo {
     pub id: i64,
     pub txid: String,
     pub vout: i32,
@@ -110,20 +113,23 @@ pub struct UTXO {
 /// LOOP_OUT_STATE_INITIATED should be set when the server has registered the loop out and returned the swap invoice.
 pub const LOOP_OUT_STATE_INITIATED: &str = "INITIATED";
 /// LOOP_OUT_STATE_CONFIRMED should be set when the funding transaction is confirmed onchain.
+#[allow(dead_code)]
 pub const LOOP_OUT_STATE_CONFIRMED: &str = "CONFIRMED";
 /// LOOP_OUT_STATE_CLAIMED should be set when the server has seen the claim transaction in the mempool or confirmed onchain.
+#[allow(dead_code)]
 pub const LOOP_OUT_STATE_CLAIMED: &str = "CLAIMED";
 /// LOOP_OUT_STATE_TIMEOUT should be set when the server has broadcast the timeout spend back to the server's wallet.
+#[allow(dead_code)]
 pub const LOOP_OUT_STATE_TIMEOUT: &str = "TIMEOUT";
 
 #[derive(Insertable, Clone)]
-#[table_name = "loop_outs"]
+#[diesel(table_name = loop_outs)]
 pub struct NewLoopOut {
     pub state: String,
 }
 
 #[derive(Debug, Queryable, AsChangeset)]
-#[table_name = "loop_outs"]
+#[diesel(table_name = loop_outs)]
 pub struct LoopOut {
     pub id: i64,
     pub state: String,
@@ -135,6 +141,6 @@ pub struct LoopOut {
 pub struct FullLoopOutData {
     pub loop_out: LoopOut,
     pub script: Script,
-    pub utxo: UTXO,
+    pub utxo: Utxo,
     pub invoice: Invoice,
 }
