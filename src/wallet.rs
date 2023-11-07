@@ -7,7 +7,7 @@ use bitcoin::address;
 
 // use crate::services::errors::{LooperError, LooperErrorResponse};
 
-use crate::settings;
+use crate::{mempool, settings};
 use bdk::{
     bitcoin::{
         bip32::{ChildNumber, ExtendedPrivKey},
@@ -37,6 +37,7 @@ pub struct LooperWallet {
     xprv: ExtendedPrivKey,
     index: std::sync::Mutex<u32>,
     wallet: Wallet<sled::Tree>,
+    mempool_client: reqwest::Client,
 }
 
 impl LooperWallet {
@@ -78,11 +79,14 @@ impl LooperWallet {
 
         let blockchain = LooperWallet::build_rpc_blockchain(cfg, wallet_name)?;
 
+        let mempool_client = reqwest::Client::new();
+
         let looper_wallet = Self {
             blockchain,
             xprv,
             index: std::sync::Mutex::new(0),
             wallet,
+            mempool_client,
         };
 
         looper_wallet.sync()?;
@@ -156,6 +160,18 @@ impl LooperWallet {
         self.wallet.get_balance().map_err(|e| {
             WalletError::new(format!("failed to get wallet balance: {:?}", e.to_string()))
         })
+    }
+
+    pub fn get_mempool_fee_rate(&self) -> Result<FeeRate, WalletError> {
+        // &self.mempool_client.request(method, url)
+        let fee_rate = mempool::get_mempool_fee_rate_sync(
+            &self.mempool_client,
+            // TODO: make this configurable
+            mempool::MempoolFeePriority::Blocks6,
+        )
+        .map_err(|e| WalletError::new(format!("failed to get mempool fee estimate: {:?}", e)))?;
+
+        Ok(FeeRate::from_sat_per_vb(fee_rate))
     }
 
     pub fn estimate_fee_rate(&self, target: usize) -> Result<FeeRate, WalletError> {

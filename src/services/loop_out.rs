@@ -19,6 +19,7 @@ use crate::{
 };
 
 // TODO: maybe make configurable
+#[allow(dead_code)]
 pub const TARGET_CONFS: usize = 6;
 
 pub struct LoopOutConfig {
@@ -196,6 +197,7 @@ impl LoopOutService {
             .await
             .map_err(|e| LoopOutServiceError::new(format!("error adding invoice: {:?}", e)))?;
         mem::drop(lndg);
+        log::info!("added invoice: {:?}", invoice.payment_hash);
 
         let new_invoice = NewInvoice {
             loop_out_id: *loop_out_id,
@@ -271,9 +273,14 @@ impl LoopOutService {
             local_pubkey_index: looper_pubkey_idx as i32,
         };
 
-        db::insert_script(conn, new_script).map_err(|e| {
+        log::info!("adding script...");
+        let res = db::insert_script(conn, new_script).map_err(|e| {
             LoopOutServiceError::new(format!("error inserting script into db: {:?}", e))
-        })
+        });
+
+        log::info!("added script");
+
+        res
     }
 
     async fn add_utxo_to_htlc(
@@ -283,6 +290,7 @@ impl LoopOutService {
         address: &str,
         amount: u64,
     ) -> Result<(Utxo, bitcoin::Transaction), LoopOutServiceError> {
+        log::info!("adding utxo...");
         let tx = self.build_tx_to_address(address, amount).await?;
         let txid = tx.txid();
         let amount = amount.try_into().map_err(|e| {
@@ -299,6 +307,8 @@ impl LoopOutService {
             LoopOutServiceError::new(format!("error inserting utxo into db: {:?}", e))
         })?;
 
+        log::info!("added utxo {:?}:{:?}", utxo.txid, utxo.vout);
+
         Ok((utxo, tx))
     }
 
@@ -308,9 +318,11 @@ impl LoopOutService {
         amount: u64,
     ) -> Result<bitcoin::Transaction, LoopOutServiceError> {
         let wallet = self.wallet.lock().await;
+        log::info!("estimating fee rate...");
         let fee_rate = (*wallet)
-            .estimate_fee_rate(TARGET_CONFS)
+            .get_mempool_fee_rate()
             .map_err(|e| LoopOutServiceError::new(format!("error estimating fee rate: {:?}", e)))?;
+        log::info!("building tx...");
         let tx = (*wallet)
             .send_to_address(address, amount, fee_rate)
             .map_err(|e| {
@@ -320,14 +332,20 @@ impl LoopOutService {
                 ))
             })?;
         mem::drop(wallet);
+        log::info!("built tx");
         Ok(tx)
     }
 
     async fn broadcast_tx(&self, tx: &bitcoin::Transaction) -> Result<(), LoopOutServiceError> {
+        log::info!("broadcasting tx...");
         let wallet = self.wallet.lock().await;
-        (*wallet)
+        let res = (*wallet)
             .broadcast_tx(tx)
-            .map_err(|e| LoopOutServiceError::new(format!("error broadcasting tx: {:?}", e)))
+            .map_err(|e| LoopOutServiceError::new(format!("error broadcasting tx: {:?}", e)));
+
+        log::info!("broadcasted tx");
+
+        res
     }
 
     fn p2tr_address(&self, tr: &TaprootSpendInfo) -> Address {

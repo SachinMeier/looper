@@ -45,6 +45,7 @@ bitcoin_hashes = "0.13.0"
 diesel = {version = "2.1.0", features = ["postgres","r2d2", "chrono", "serde_json", "postgres_backend"]}
 # diesel-async = { version = "0.4.1", features = ["postgres"] }
 diesel_migrations = { version = "2.1.0", features = ["postgres"] }
+async-std = "1.11.0"
 
 [build-dependencies]
 tonic-build = "0.5.2"

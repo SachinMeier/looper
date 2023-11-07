@@ -8,4 +8,5 @@ pub mod settings;
 pub mod utils;
 pub mod wallet;
 // mod api;
+pub mod mempool;
 pub mod services;
