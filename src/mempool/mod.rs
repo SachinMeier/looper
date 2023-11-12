@@ -3,15 +3,20 @@ extern crate serde_json;
 
 use core::time;
 
-use async_std::task;
+// use tokio::task;
 
+use bdk::bitcoincore_rpc::jsonrpc::client;
+use bdk::FeeRate;
 use reqwest::Client;
 use serde::Deserialize;
+
+// TODO: don't instatiate a new client for every request. Have each function take in a client as param.
 
 const MEMPOOL_BASE_URL: &str = "https://mempool.space/api/v1";
 // TODO: make configurable
 const REQUEST_TIMEOUT: u64 = 15;
 
+#[derive(Debug)]
 pub enum MempoolFeePriority {
     Fastest,
     Blocks3,
@@ -38,11 +43,8 @@ fn build_mempool_url(endpoint: &str) -> String {
     format!("{}{}", MEMPOOL_BASE_URL, endpoint)
 }
 
-// pub fn get_mempool_fee_estimate_sync(client: &Client) -> Result<FeeEstimate, MempoolError> {
-//     task::block_on(async { get_mempool_fee_estimate(client).await })
-// }
-
-pub async fn get_mempool_fee_estimate(client: &Client) -> Result<FeeEstimate, MempoolError> {
+pub async fn get_mempool_fee_estimate() -> Result<FeeEstimate, MempoolError> {
+    let client = Client::new();
     let resp = client
         .get(build_mempool_url("/fees/recommended"))
         // TODO: maybe this should be set on the client not the request.
@@ -66,42 +68,24 @@ pub async fn get_mempool_fee_estimate(client: &Client) -> Result<FeeEstimate, Me
     Ok(fee_estimate)
 }
 
-pub fn get_mempool_fee_rate_sync(
-    client: &Client,
-    priority: MempoolFeePriority,
-) -> Result<f32, MempoolError> {
-    let mut res = Ok(0.0);
-    task::block_on(async {
-        log::info!("getting mempool fee rate");
-        res = get_mempool_fee_rate(client, priority)
-            .await
-            .map_err(|e| MempoolError::new(format!("failed to get mempool fee rate: {:?}", e)));
-        log::info!("got mempool fee rate: {:?}", res);
-    });
-
-    res
-}
-
-pub async fn get_mempool_fee_rate(
-    client: &Client,
-    priority: MempoolFeePriority,
-) -> Result<f32, MempoolError> {
-    let fee_estimate = get_mempool_fee_estimate(client).await?;
-
+pub async fn get_mempool_fee_rate(priority: MempoolFeePriority) -> Result<FeeRate, MempoolError> {
+    let fee_estimate = get_mempool_fee_estimate().await?;
     Ok(get_fee_estimate_by_priority(&fee_estimate, priority))
 }
 
 pub fn get_fee_estimate_by_priority(
     fee_estimate: &FeeEstimate,
     priority: MempoolFeePriority,
-) -> f32 {
-    match priority {
+) -> FeeRate {
+    let fee_rate = match priority {
         MempoolFeePriority::Fastest => fee_estimate.fastest_fee as f32,
         MempoolFeePriority::Blocks3 => fee_estimate.half_hour_fee as f32,
         MempoolFeePriority::Blocks6 => fee_estimate.hour_fee as f32,
         MempoolFeePriority::Economy => fee_estimate.economy_fee as f32,
         MempoolFeePriority::Minimum => fee_estimate.minimum_fee as f32,
-    }
+    };
+
+    FeeRate::from_sat_per_vb(fee_rate)
 }
 
 #[derive(Debug)]
@@ -120,22 +104,16 @@ pub(crate) mod tests {
     use super::*;
     use tokio::test;
 
-    use reqwest::Client;
-
-    use once_cell::sync::Lazy;
-
-    static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
-
     #[tokio::test]
     async fn test_get_mempool_fee_estimate() {
-        let fee_estimate = get_mempool_fee_estimate(&CLIENT).await.unwrap();
+        let fee_estimate = get_mempool_fee_estimate().await.unwrap();
 
         assert_fee_estimate(&fee_estimate);
     }
 
     #[tokio::test]
     async fn test_get_mempool_fee_rate() {
-        let fee_rate = get_mempool_fee_rate(&CLIENT, MempoolFeePriority::Blocks3)
+        let fee_rate = get_mempool_fee_rate(MempoolFeePriority::Blocks3)
             .await
             .unwrap();
 

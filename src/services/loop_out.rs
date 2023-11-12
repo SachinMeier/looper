@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 use crate::{
     db::{self, DB},
     lnd::client::LNDGateway,
+    mempool,
     models::{self, FullLoopOutData, Invoice, NewInvoice, NewScript, NewUTXO, Script, Utxo},
     settings,
     wallet::LooperWallet,
@@ -319,12 +320,13 @@ impl LoopOutService {
     ) -> Result<bitcoin::Transaction, LoopOutServiceError> {
         let wallet = self.wallet.lock().await;
         log::info!("estimating fee rate...");
-        let fee_rate = (*wallet)
-            .get_mempool_fee_rate()
+        let fee_rate = mempool::get_mempool_fee_rate(mempool::MempoolFeePriority::Blocks6)
+            .await
             .map_err(|e| LoopOutServiceError::new(format!("error estimating fee rate: {:?}", e)))?;
+
         log::info!("building tx...");
-        let tx = (*wallet)
-            .send_to_address(address, amount, fee_rate)
+        let tx = &wallet
+            .send_to_address(address, amount, &fee_rate)
             .map_err(|e| {
                 LoopOutServiceError::new(format!(
                     "error building tx to address {}: {:?}",
@@ -333,7 +335,7 @@ impl LoopOutService {
             })?;
         mem::drop(wallet);
         log::info!("built tx");
-        Ok(tx)
+        Ok(tx.clone())
     }
 
     async fn broadcast_tx(&self, tx: &bitcoin::Transaction) -> Result<(), LoopOutServiceError> {

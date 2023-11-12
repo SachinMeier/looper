@@ -31,13 +31,14 @@ use bdk::{
 };
 use bdk::{blockchain::Blockchain, sled};
 use config::Config;
+use std::sync::{Arc, Mutex};
 
 pub struct LooperWallet {
     blockchain: RpcBlockchain,
     xprv: ExtendedPrivKey,
-    index: std::sync::Mutex<u32>,
+    index: Mutex<u32>,
     wallet: Wallet<sled::Tree>,
-    mempool_client: reqwest::Client,
+    mempool_client: Arc<tokio::sync::Mutex<reqwest::Client>>,
 }
 
 impl LooperWallet {
@@ -79,14 +80,12 @@ impl LooperWallet {
 
         let blockchain = LooperWallet::build_rpc_blockchain(cfg, wallet_name)?;
 
-        let mempool_client = reqwest::Client::new();
-
         let looper_wallet = Self {
             blockchain,
             xprv,
-            index: std::sync::Mutex::new(0),
+            index: Mutex::new(0),
             wallet,
-            mempool_client,
+            mempool_client: Arc::new(tokio::sync::Mutex::new(reqwest::Client::new())),
         };
 
         looper_wallet.sync()?;
@@ -162,16 +161,15 @@ impl LooperWallet {
         })
     }
 
-    pub fn get_mempool_fee_rate(&self) -> Result<FeeRate, WalletError> {
-        // &self.mempool_client.request(method, url)
-        let fee_rate = mempool::get_mempool_fee_rate_sync(
-            &self.mempool_client,
+    pub async fn get_mempool_fee_rate() -> Result<FeeRate, WalletError> {
+        let fee_rate = mempool::get_mempool_fee_rate(
             // TODO: make this configurable
             mempool::MempoolFeePriority::Blocks6,
         )
+        .await
         .map_err(|e| WalletError::new(format!("failed to get mempool fee estimate: {:?}", e)))?;
 
-        Ok(FeeRate::from_sat_per_vb(fee_rate))
+        Ok(fee_rate)
     }
 
     pub fn estimate_fee_rate(&self, target: usize) -> Result<FeeRate, WalletError> {
@@ -184,7 +182,7 @@ impl LooperWallet {
         &self,
         address: &str,
         amount: u64,
-        fee_rate: FeeRate,
+        fee_rate: &FeeRate,
     ) -> Result<Transaction, WalletError> {
         let mut tx_builder = self.wallet.build_tx();
         let addr = self.validate_address(address)?;
@@ -200,7 +198,7 @@ impl LooperWallet {
             // and the change will be to wpkh for now, so overall poor privacy anyway. All fixable.
             .ordering(bdk::wallet::tx_builder::TxOrdering::Untouched)
             .add_recipient(addr.script_pubkey(), amount)
-            .fee_rate(fee_rate)
+            .fee_rate(*fee_rate)
             .nlocktime(locktime);
 
         let (mut psbt, _details) = tx_builder
