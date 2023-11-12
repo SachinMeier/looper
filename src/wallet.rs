@@ -31,7 +31,7 @@ use bdk::{
 };
 use bdk::{blockchain::Blockchain, sled};
 use config::Config;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 pub struct LooperWallet {
     blockchain: RpcBlockchain,
