@@ -5,7 +5,6 @@ use core::time;
 
 // use tokio::task;
 
-use bdk::bitcoincore_rpc::jsonrpc::client;
 use bdk::FeeRate;
 use reqwest::Client;
 use serde::Deserialize;

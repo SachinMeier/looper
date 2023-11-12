@@ -38,7 +38,6 @@ pub struct LooperWallet {
     xprv: ExtendedPrivKey,
     index: Mutex<u32>,
     wallet: Wallet<sled::Tree>,
-    mempool_client: Arc<tokio::sync::Mutex<reqwest::Client>>,
 }
 
 impl LooperWallet {
@@ -85,7 +84,6 @@ impl LooperWallet {
             xprv,
             index: Mutex::new(0),
             wallet,
-            mempool_client: Arc::new(tokio::sync::Mutex::new(reqwest::Client::new())),
         };
 
         looper_wallet.sync()?;
