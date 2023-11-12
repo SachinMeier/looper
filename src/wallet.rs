@@ -7,7 +7,7 @@ use bitcoin::address;
 
 // use crate::services::errors::{LooperError, LooperErrorResponse};
 
-use crate::settings;
+use crate::{mempool, settings};
 use bdk::{
     bitcoin::{
         bip32::{ChildNumber, ExtendedPrivKey},
@@ -31,11 +31,12 @@ use bdk::{
 };
 use bdk::{blockchain::Blockchain, sled};
 use config::Config;
+use std::sync::Mutex;
 
 pub struct LooperWallet {
     blockchain: RpcBlockchain,
     xprv: ExtendedPrivKey,
-    index: std::sync::Mutex<u32>,
+    index: Mutex<u32>,
     wallet: Wallet<sled::Tree>,
 }
 
@@ -81,7 +82,7 @@ impl LooperWallet {
         let looper_wallet = Self {
             blockchain,
             xprv,
-            index: std::sync::Mutex::new(0),
+            index: Mutex::new(0),
             wallet,
         };
 
@@ -158,6 +159,17 @@ impl LooperWallet {
         })
     }
 
+    pub async fn get_mempool_fee_rate() -> Result<FeeRate, WalletError> {
+        let fee_rate = mempool::get_mempool_fee_rate(
+            // TODO: make this configurable
+            mempool::MempoolFeePriority::Blocks6,
+        )
+        .await
+        .map_err(|e| WalletError::new(format!("failed to get mempool fee estimate: {:?}", e)))?;
+
+        Ok(fee_rate)
+    }
+
     pub fn estimate_fee_rate(&self, target: usize) -> Result<FeeRate, WalletError> {
         self.blockchain.estimate_fee(target).map_err(|e| {
             WalletError::new(format!("failed to estimate fee rate: {:?}", e.to_string()))
@@ -168,7 +180,7 @@ impl LooperWallet {
         &self,
         address: &str,
         amount: u64,
-        fee_rate: FeeRate,
+        fee_rate: &FeeRate,
     ) -> Result<Transaction, WalletError> {
         let mut tx_builder = self.wallet.build_tx();
         let addr = self.validate_address(address)?;
@@ -184,7 +196,7 @@ impl LooperWallet {
             // and the change will be to wpkh for now, so overall poor privacy anyway. All fixable.
             .ordering(bdk::wallet::tx_builder::TxOrdering::Untouched)
             .add_recipient(addr.script_pubkey(), amount)
-            .fee_rate(fee_rate)
+            .fee_rate(*fee_rate)
             .nlocktime(locktime);
 
         let (mut psbt, _details) = tx_builder

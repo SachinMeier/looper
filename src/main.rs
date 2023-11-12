@@ -7,6 +7,7 @@ extern crate rocket;
 mod api;
 mod db;
 pub mod lnd;
+pub mod mempool;
 pub mod models;
 mod schema;
 mod services;

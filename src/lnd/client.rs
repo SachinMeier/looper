@@ -253,12 +253,14 @@ impl LNDGateway {
             payment_hash: vec![],
             payment_hash_string: "".to_string(),
             payment_request: invoice,
+            // TODO: SET ME to cltv_delta + block height so that we can ensure the invoice can't be held too long
             final_cltv_delta: 0,
             fee_limit: Some(FeeLimit {
                 limit: Some(lnrpc::fee_limit::Limit::Fixed(fee_limit)),
             }),
             outgoing_chan_id: 0,
             last_hop_pubkey: vec![],
+            // TODO: we need to set this when paying Loop invoices to avoid the invoice being held too long
             cltv_limit: 0,
             dest_custom_records: HashMap::new(),
             allow_self_payment: false,

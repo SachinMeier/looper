@@ -5,6 +5,8 @@ use rocket::{
     Request,
 };
 
+use crate::services::{loop_out::LoopOutServiceError, NOT_FOUND};
+
 use std::io::Cursor;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -54,4 +56,24 @@ pub fn internal_server_error() -> LooperErrorResponse {
 
 pub fn bad_request(message: String, param: String) -> LooperErrorResponse {
     LooperErrorResponse::new(Status::BadRequest, message, param)
+}
+
+pub fn invalid_parameter(param: String) -> LooperErrorResponse {
+    bad_request("invalid parameter".to_string(), param)
+}
+
+pub fn handle_loop_out_error(e: LoopOutServiceError) -> LooperErrorResponse {
+    match e.message.as_str() {
+        NOT_FOUND => {
+            log::info!("loop out not found: {:?}", e);
+
+            not_found("loop_out".to_string())
+        }
+
+        e => {
+            log::error!("internal server error: {:?}", e);
+
+            internal_server_error()
+        }
+    }
 }

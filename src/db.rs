@@ -12,8 +12,6 @@ use diesel::{
 // use diesel_async::AsyncConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
-pub const NOT_FOUND: &str = "not found";
-
 pub struct DBConfig {
     pub host: String,
     pub port: i64,
