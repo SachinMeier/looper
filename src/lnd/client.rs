@@ -1,5 +1,4 @@
-use crate::settings;
-use crate::utils;
+use crate::{settings, utils};
 use hex;
 use std::collections::HashMap;
 
@@ -105,7 +104,7 @@ impl LNDGateway {
         let mut client = self.get_client().await;
 
         // TODO: do we have to generate this?
-        let (preimage, payment_hash) = LNDGateway::new_preimage();
+        let (preimage, payment_hash) = Self::new_preimage();
         let payment_addr = LNDGateway::new_payment_addr();
         // resolves lint vs compile error dilemma
         #[allow(deprecated)]
@@ -162,7 +161,7 @@ impl LNDGateway {
         cltv_timout: u64,
     ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
         let mut client = self.get_client().await;
-        let (preimage, payment_hash) = LNDGateway::new_preimage();
+        let (preimage, payment_hash) = Self::new_preimage();
 
         let req = invoicesrpc::AddHoldInvoiceRequest {
             memo: "looper swap out".to_string(),
@@ -276,15 +275,14 @@ impl LNDGateway {
         }
     }
 
-    pub fn new_preimage() -> ([u8; 32], [u8; 32]) {
+    fn new_preimage() -> ([u8; 32], [u8; 32]) {
         let preimage: [u8; 32] = utils::rand_32_bytes();
         let payment_hash = utils::sha256(&preimage);
 
         (preimage, payment_hash)
     }
 
-    // TODO move this to a general new_32_byte_array function
-    pub fn new_payment_addr() -> [u8; 32] {
+    fn new_payment_addr() -> [u8; 32] {
         utils::rand_32_bytes()
     }
 }

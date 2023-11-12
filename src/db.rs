@@ -390,6 +390,7 @@ pub(crate) mod tests {
             external_tapkey: "test-external-tapkey",
             internal_tapkey: "test-internal-tapkey",
             internal_tapkey_tweak: "test-internal-tapkey-tweak",
+            payment_hash: "test-payment-hash",
             tree: vec!["test-tree".to_string(), "test-tree2".to_string()],
             cltv_expiry: 100,
             remote_pubkey: "test-remote-pubkey".to_string(),
