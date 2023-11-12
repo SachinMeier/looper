@@ -101,7 +101,7 @@ impl MempoolError {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use tokio::test;
+    // use tokio::test;
 
     #[tokio::test]
     async fn test_get_mempool_fee_estimate() {
@@ -116,7 +116,8 @@ pub(crate) mod tests {
             .await
             .unwrap();
 
-        assert!(fee_rate > 0.0);
+        let zero = FeeRate::from_sat_per_vb(0.0);
+        assert!(fee_rate.gt(&zero));
     }
 
     // #[tokio::test]
