@@ -133,10 +133,11 @@ pub(crate) mod tests {
             fee_estimate.half_hour_fee > 0
                 && fee_estimate.half_hour_fee <= fee_estimate.fastest_fee
         );
-        assert!(fee_estimate.hour_fee > 0 && fee_estimate.hour_fee <= fee_estimate.half_hour_fee);
-        assert!(fee_estimate.economy_fee > 0 && fee_estimate.economy_fee <= fee_estimate.hour_fee);
-        assert!(
-            fee_estimate.minimum_fee > 0 && fee_estimate.minimum_fee <= fee_estimate.economy_fee
-        );
+        assert!(fee_estimate.hour_fee > 0);
+        assert!(fee_estimate.hour_fee <= fee_estimate.half_hour_fee);
+        assert!(fee_estimate.economy_fee > 0);
+        assert!(fee_estimate.economy_fee <= fee_estimate.hour_fee);
+        assert!(fee_estimate.minimum_fee > 0);
+        assert!(fee_estimate.minimum_fee <= fee_estimate.economy_fee);
     }
 }
