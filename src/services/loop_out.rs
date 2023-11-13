@@ -267,6 +267,7 @@ impl LoopOutService {
             external_tapkey: &tr.output_key().to_string(),
             internal_tapkey: &tr.internal_key().to_string(),
             internal_tapkey_tweak: &hex::encode(tweak.secret_bytes()),
+            payment_hash,
             tree: tree_to_vec(&tr),
             cltv_expiry: cltv_expiry_u32,
             remote_pubkey: buyer_pubkey.to_string(),
