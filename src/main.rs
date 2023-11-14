@@ -1,9 +1,6 @@
 #[macro_use]
 extern crate rocket;
 
-// #[macro_use]
-// extern crate diesel;
-
 mod api;
 mod db;
 pub mod lnd;
@@ -30,21 +27,27 @@ async fn main() {
 
 async fn run() {
     let cfg = settings::build_config().unwrap();
-
     let db = DB::new(&cfg);
-
     let migration_conn = &mut db.get_conn().unwrap();
     db::run_migrations(migration_conn).unwrap();
 
-    let wallet = wallet::LooperWallet::new(&cfg).unwrap();
-
-    let lndg = LNDGateway::new().await.unwrap();
-
-    let loopout_svc = services::loop_out::LoopOutService::new(&cfg, db, wallet, lndg).unwrap();
-
-    let server = api::server::LooperServer::new(loopout_svc);
-    server.start();
-
-    let stdin = io::stdin();
-    let _line = stdin.lock().lines().next().unwrap().unwrap();
+    match wallet::LooperWallet::new(&cfg) {
+        Ok(wallet) => {
+            match LNDGateway::new().await {
+                Ok(lndg) => {
+                    let loopout_svc = services::loop_out::LoopOutService::new(&cfg, db, wallet, lndg).unwrap();
+                    let server = api::server::LooperServer::new(loopout_svc);
+                    server.start();
+                    let stdin = io::stdin();
+                    let _line = stdin.lock().lines().next().unwrap().unwrap();
+                },
+                Err(err)=> {
+                    panic!("could not start the lndGateway {} ", err.msg);
+                }
+            }
+        },
+         Err(err)=> {
+             panic!("could not create the wallet {} ", err.message);
+         }
+    }
 }
