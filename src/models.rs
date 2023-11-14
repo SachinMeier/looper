@@ -56,6 +56,7 @@ pub struct NewScript<'a> {
     pub external_tapkey: &'a str,
     pub internal_tapkey: &'a str,
     pub internal_tapkey_tweak: &'a str,
+    pub payment_hash: &'a str,
     pub tree: Vec<String>,
     pub cltv_expiry: i32,
     pub remote_pubkey: String,
@@ -74,6 +75,7 @@ pub struct Script {
     pub internal_tapkey: String,
     pub internal_tapkey_tweak: String,
     // TODO: replace tree with payment_hash
+    pub payment_hash: String,
     pub tree: Vec<Option<String>>,
     pub cltv_expiry: i32,
     pub remote_pubkey: String,

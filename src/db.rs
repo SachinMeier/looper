@@ -390,6 +390,7 @@ pub(crate) mod tests {
             external_tapkey: "test-external-tapkey",
             internal_tapkey: "test-internal-tapkey",
             internal_tapkey_tweak: "test-internal-tapkey-tweak",
+            payment_hash: "test-payment-hash",
             tree: vec!["test-tree".to_string(), "test-tree2".to_string()],
             cltv_expiry: 100,
             remote_pubkey: "test-remote-pubkey".to_string(),
@@ -445,6 +446,7 @@ pub(crate) mod tests {
         assert_eq!(ns.external_tapkey, ss.external_tapkey);
         assert_eq!(ns.internal_tapkey, ss.internal_tapkey);
         assert_eq!(ns.internal_tapkey_tweak, ss.internal_tapkey_tweak);
+        assert_eq!(ns.payment_hash, ss.payment_hash);
         assert_eq!(ns.cltv_expiry, ss.cltv_expiry);
         assert_eq!(ns.remote_pubkey, ss.remote_pubkey);
         assert_eq!(ns.local_pubkey, ss.local_pubkey);
