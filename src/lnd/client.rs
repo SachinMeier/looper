@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
+use std::{fs};
+use std::fmt::Write;
 
 use hex;
 use lnd_grpc_rust::{lnrpc, LndClient};
 use tokio::sync::{Mutex, MutexGuard};
-
 use crate::{settings, utils};
 
 #[derive(Clone)]
@@ -287,11 +287,10 @@ impl LNDGateway {
 }
 
 pub fn buffer_as_hex(bytes: Vec<u8>) -> String {
-    let hex_str = bytes
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect::<String>();
-    return hex_str;
+    bytes.iter().fold(String::new(), |mut output, b| {
+        let _ = write!(output, "{b:02X}");
+        output
+    })
 }
 
 // TODO: should we make every method return this error or is fedimint_tonic_lnd::Error sufficient?
