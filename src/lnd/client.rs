@@ -1,14 +1,13 @@
 use crate::{settings, utils};
 use hex;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fs;
+use config::Config;
+use lnd_grpc_rust::{invoicesrpc, LndClient, lnrpc, routerrpc};
 
-use tokio::sync::Mutex;
-
-use fedimint_tonic_lnd::{
-    invoicesrpc,
-    lnrpc::{self, FeeLimit},
-    routerrpc, Client,
-};
+use tokio::sync::{Mutex, MutexGuard};
+use crate::schema::scripts::address;
 
 #[derive(Clone)]
 pub struct LNDConfig {
@@ -26,36 +25,35 @@ pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayErr
         Err(_) => DEFAULT_INVOICE_LIFETIME,
     };
 
-    let address = cfg
-        .get("lnd.address")
-        .map_err(|e| LNDGatewayError::new(format!("lnd.address not set: {:?}", e.to_string())))?;
-    let cert_path = cfg
-        .get("lnd.cert_path")
-        .map_err(|e| LNDGatewayError::new(format!("lnd.cert_path not set: {:?}", e.to_string())))?;
-    let macaroon_path = cfg.get("lnd.macaroon_path").map_err(|e| {
-        LNDGatewayError::new(format!("lnd.macaroon_path not set: {:?}", e.to_string()))
-    })?;
+    // extract all files necessaty to connect to lnd
+    let host = "localhost:8081".to_string();
+    let cert_bytes =  fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/tls.cert").expect("FailedToReadTlsCertFile");
+    let mac_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/data/chain/bitcoin/regtest/admin.macaroon").expect("FailedToReadMacaroonFile");
+
+    // Convert the bytes to a hex string
+    let cert = buffer_as_hex(cert_bytes);
+    let macaroon = buffer_as_hex(mac_bytes);
 
     Ok(LNDConfig {
-        address,
-        cert_path,
-        macaroon_path,
+        cert_path: cert,
+         macaroon_path:macaroon,
+        address: host,
         invoice_lifetime: invoice_lifetime as i64,
     })
 }
 
-pub async fn new_client(cfg: LNDConfig) -> Result<Client, fedimint_tonic_lnd::ConnectError> {
-    fedimint_tonic_lnd::connect(
-        cfg.address.clone(),
+pub async fn new_client(cfg: LNDConfig) -> Result<LndClient, Box<dyn Error>> {
+    lnd_grpc_rust::connect(
         cfg.cert_path.clone(),
         cfg.macaroon_path.clone(),
+        cfg.address.clone(),
     )
     .await
 }
 
 pub struct LNDGateway {
     cfg: LNDConfig,
-    client: Mutex<Client>,
+    client: Mutex<LndClient>,
 }
 
 #[derive(Debug)]
@@ -84,23 +82,23 @@ impl LNDGateway {
         })
     }
 
-    async fn get_client(&self) -> tokio::sync::MutexGuard<'_, Client> {
+    async fn get_client(&self) -> MutexGuard<'_, LndClient> {
         self.client.lock().await
     }
 
-    pub async fn get_info(&self) -> Result<lnrpc::GetInfoResponse, fedimint_tonic_lnd::Error> {
+/*    pub async fn get_info(&self) -> Result<lnrpc::, lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
         let resp = client.lightning().get_info(lnrpc::GetInfoRequest {}).await;
         match resp {
             Ok(resp) => Ok(resp.into_inner()),
             Err(e) => Err(e),
         }
-    }
+    }*/
 
     pub async fn add_invoice(
         &self,
         value: i64,
-    ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
+    ) -> Result<AddInvoiceResp, lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
 
         // TODO: do we have to generate this?
@@ -108,7 +106,7 @@ impl LNDGateway {
         let payment_addr = LNDGateway::new_payment_addr();
         // resolves lint vs compile error dilemma
         #[allow(deprecated)]
-        let req = lnrpc::Invoice {
+        let req = lnd_grpc_rust::lnrpc::Invoice {
             memo: "looper swap out".to_string(),
             r_preimage: preimage.to_vec(),
             r_hash: payment_hash.to_vec(),
@@ -159,11 +157,11 @@ impl LNDGateway {
         &self,
         value: i64,
         cltv_timout: u64,
-    ) -> Result<AddInvoiceResp, fedimint_tonic_lnd::Error> {
+    ) -> Result<AddInvoiceResp, lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
         let (preimage, payment_hash) = Self::new_preimage();
 
-        let req = invoicesrpc::AddHoldInvoiceRequest {
+        let req = lnd_grpc_rust::invoicesrpc::AddHoldInvoiceRequest {
             memo: "looper swap out".to_string(),
             hash: payment_hash.to_vec(),
             value,
@@ -196,11 +194,11 @@ impl LNDGateway {
         &self,
         invoice: String,
         fee_limit: i64,
-    ) -> Result<(), fedimint_tonic_lnd::Error> {
+    ) -> Result<(), lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
         // resolves lint vs compile error dilemma
         #[allow(deprecated)]
-        let req = routerrpc::SendPaymentRequest {
+        let req = lnd_grpc_rust::routerrpc::SendPaymentRequest {
             payment_request: invoice,
             timeout_seconds: 600,
             amt: 0,
@@ -240,11 +238,11 @@ impl LNDGateway {
         &self,
         invoice: String,
         fee_limit: i64,
-    ) -> Result<lnrpc::SendResponse, fedimint_tonic_lnd::Error> {
+    ) -> Result<lnd_grpc_rust::lnrpc::SendResponse, lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
         // resolves lint vs compile error dilemma
         #[allow(deprecated)]
-        let req = lnrpc::SendRequest {
+        let req = lnd_grpc_rust::lnrpc::SendRequest {
             dest: vec![],
             dest_string: "".to_string(),
             amt: 0,
@@ -254,7 +252,7 @@ impl LNDGateway {
             payment_request: invoice,
             // TODO: SET ME to cltv_delta + block height so that we can ensure the invoice can't be held too long
             final_cltv_delta: 0,
-            fee_limit: Some(FeeLimit {
+            fee_limit: Some(lnrpc::FeeLimit {
                 limit: Some(lnrpc::fee_limit::Limit::Fixed(fee_limit)),
             }),
             outgoing_chan_id: 0,
@@ -285,6 +283,12 @@ impl LNDGateway {
     fn new_payment_addr() -> [u8; 32] {
         utils::rand_32_bytes()
     }
+}
+
+pub fn buffer_as_hex(bytes: Vec<u8>) -> String {
+    let hex_str = bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+
+    return hex_str;
 }
 
 // TODO: should we make every method return this error or is fedimint_tonic_lnd::Error sufficient?
