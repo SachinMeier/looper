@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-use std::error::Error;
-use std::{fs};
-use std::fmt::Write;
-
+use crate::{settings, utils};
 use hex;
 use lnd_grpc_rust::{lnrpc, LndClient};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::Write;
+use std::fs;
 use tokio::sync::{Mutex, MutexGuard};
-use crate::{settings, utils};
 
 #[derive(Clone)]
 pub struct LNDConfig {
