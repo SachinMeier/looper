@@ -1,13 +1,12 @@
-use crate::{settings, utils};
-use hex;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
-use config::Config;
-use lnd_grpc_rust::{invoicesrpc, LndClient, lnrpc, routerrpc};
 
+use hex;
+use lnd_grpc_rust::{lnrpc, LndClient};
 use tokio::sync::{Mutex, MutexGuard};
-use crate::schema::scripts::address;
+
+use crate::{settings, utils};
 
 #[derive(Clone)]
 pub struct LNDConfig {
@@ -27,8 +26,10 @@ pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayErr
 
     // extract all files necessaty to connect to lnd
     let host = "localhost:8081".to_string();
-    let cert_bytes =  fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/tls.cert").expect("FailedToReadTlsCertFile");
-    let mac_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/data/chain/bitcoin/regtest/admin.macaroon").expect("FailedToReadMacaroonFile");
+    let cert_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/tls.cert")
+        .expect("FailedToReadTlsCertFile");
+    let mac_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/data/chain/bitcoin/regtest/admin.macaroon")
+        .expect("FailedToReadMacaroonFile");
 
     // Convert the bytes to a hex string
     let cert = buffer_as_hex(cert_bytes);
@@ -36,7 +37,7 @@ pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayErr
 
     Ok(LNDConfig {
         cert_path: cert,
-         macaroon_path:macaroon,
+        macaroon_path: macaroon,
         address: host,
         invoice_lifetime: invoice_lifetime as i64,
     })
@@ -86,7 +87,7 @@ impl LNDGateway {
         self.client.lock().await
     }
 
-/*    pub async fn get_info(&self) -> Result<lnrpc::, lnd_grpc_rust::LndClientError> {
+    /* pub async fn get_info(&self) -> Result<lnrpc::, lnd_grpc_rust::LndClientError> {
         let mut client = self.get_client().await;
         let resp = client.lightning().get_info(lnrpc::GetInfoRequest {}).await;
         match resp {
@@ -286,8 +287,10 @@ impl LNDGateway {
 }
 
 pub fn buffer_as_hex(bytes: Vec<u8>) -> String {
-    let hex_str = bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>();
-
+    let hex_str = bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
     return hex_str;
 }
 
