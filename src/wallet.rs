@@ -1,3 +1,4 @@
+use std::env;
 use std::path::Path;
 use std::str::FromStr;
 // use std::thread;
@@ -43,9 +44,8 @@ impl LooperWallet {
     // TODO: use WalletCfg instead of Config
     pub fn new(cfg: &settings::Config) -> Result<Self, WalletError> {
         let secp256k1 = Secp256k1::new();
-        // let xprv_str = env::var("LOOPER_XPRV")
-        //     .map_err(|e| WalletError::new(format!("LOOPER_XPRV unset: {:?}", e.to_string())))?;
-        let xprv_str = "tprv8ZgxMBicQKsPd7Uf69XL1XwhmjHopUGep8GuEiJDZmbQz6o58LninorQAfcKZWARbtRtfnLcJ5MQ2AtHcQJCCRUcMRvmDUjyEmNUWwx8UbK".to_string();
+        let xprv_str = env::var("LOOPER_XPRV")
+            .map_err(|e| WalletError::new(format!("LOOPER_XPRV unset: {:?}", e.to_string())))?;
         let xprv = ExtendedPrivKey::from_str(&xprv_str)
             .map_err(|e| WalletError::new(format!("failed to parse xprv: {:?}", e.to_string())))?;
         // let xpub = ExtendedPubKey::from_priv(&secp256k1, &xprv);
