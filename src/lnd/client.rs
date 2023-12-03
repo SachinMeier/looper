@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Write;
 use std::fs;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, MutexGuard};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LNDConfig {
     pub address: String,
     pub cert_path: String,
@@ -23,12 +24,14 @@ pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayErr
         Err(_) => DEFAULT_INVOICE_LIFETIME,
     };
 
-    // extract all files necessaty to connect to lnd
-    let host = "localhost:8081".to_string();
-    let cert_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/tls.cert")
-        .expect("FailedToReadTlsCertFile");
-    let mac_bytes = fs::read("/Users/rjtch/.polar/networks/1/volumes/lnd/alice/data/chain/bitcoin/regtest/admin.macaroon")
-        .expect("FailedToReadMacaroonFile");
+    // extract all files necessary to connect to lnd
+    let host = cfg.get::<String>("lnd.address").expect("FailedToReadLndHost");
+    let cert_path = cfg.get::<String>("lnd.cert_path").expect("FailedToReadLndHost");
+    let macaroon_path = cfg.get::<String>("lnd.macaroon_path").expect("FailedToReadLndHost");
+
+    // read the files and convert in bytes
+    let cert_bytes = fs::read(cert_path).expect("FailedToReadTlsCertFile");
+    let mac_bytes = fs::read(macaroon_path).expect("FailedToReadMacaroonFile");
 
     // Convert the bytes to a hex string
     let cert = buffer_as_hex(cert_bytes);
