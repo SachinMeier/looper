@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scripts (
-    id                  BIGSERIAL   PRIMARY KEY,
-    loop_out_id         BIGINT      REFERENCES loop_outs(id) ON DELETE CASCADE,
+    id                  UUID   PRIMARY KEY,
+    loop_out_id         UUID      REFERENCES loop_outs(id) ON DELETE CASCADE,
     address             TEXT        NOT NULL,
     external_tapkey        TEXT        NOT NULL,
     internal_tapkey        TEXT        NOT NULL,
