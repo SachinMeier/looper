@@ -9,7 +9,8 @@ services:
       - POSTGRES_PASSWORD=postgres
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-    - postgres-volume:/var/lib/postgresql/data
+     - postgres-volume:/var/lib/postgresql/data
+     - ./init/looper.sql:/docker-entrypoint-initdb.d/looper.sql
     restart: on-failure
     ports:
       - "5432:5432"

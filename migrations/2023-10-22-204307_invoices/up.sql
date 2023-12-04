@@ -1,7 +1,7 @@
 -- Your SQL goes here
 CREATE TABLE IF NOT EXISTS invoices (
-    id                  UUID   PRIMARY KEY,
-    loop_out_id         UUID      REFERENCES loop_outs(id) ON DELETE CASCADE,
+    id                  BIGSERIAL   PRIMARY KEY,
+    loop_out_id         BIGINT      REFERENCES loop_outs(id) ON DELETE CASCADE,
     payment_request     TEXT        NOT NULL,
     payment_hash        TEXT        NOT NULL,
     payment_preimage    TEXT,
