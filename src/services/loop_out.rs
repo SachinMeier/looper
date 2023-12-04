@@ -116,6 +116,11 @@ impl LoopOutService {
 
         let loop_out = self.add_loop_out(conn)?;
 
+        // get initiated loopOuts
+        let mut  initiates_loop_outs = self.get_loop_out_by_state(models::LOOP_OUT_STATE_INITIATED.to_string(), conn)?;
+        initiates_loop_outs = self.get_loop_out_by_state(models::LOOP_OUT_STATE_CONFIRMED.to_string(), conn)?;
+        println!("initiates_loop_outs: {:?}", initiates_loop_outs);
+
         let invoice = self.add_invoice(conn, &loop_out.id, invoice_amount).await?;
 
         let script = self
@@ -171,6 +176,19 @@ impl LoopOutService {
             Err(e) => Err(e),
         }
     }
+
+
+    fn get_loop_out_by_state(&self,
+                             state: String,
+                             conn: &mut db::PooledConnection)
+        -> Result<Vec<models::LoopOut>, LoopOutServiceError> {
+
+        db::get_loop_outs_by_state(conn, state.to_string()).map_err(|e| {
+            LoopOutServiceError::new(format!("error getting loop_out from db: {:?}", e))
+        })
+
+    }
+
 
     fn add_loop_out(
         &self,
