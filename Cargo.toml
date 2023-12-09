@@ -20,6 +20,7 @@ config = "0.13.3"
 deadpool-postgres = "0.10.5"
 futures = "0.3.25"
 futures-util = "0.3.25"
+figment = "0.10.12"
 hex = "0.4.3"
 lazy_static = "1.4.0"
 lightning = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "56b0c96" }
