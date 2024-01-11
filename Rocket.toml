@@ -2,8 +2,6 @@
 address = "127.0.0.1"
 port = 8000
 max_blocking = 512
-keep_alive = 5
-http1 = "true"
 ident = "Rocket"
 log_level = "normal"
 
@@ -12,6 +10,7 @@ form = "64 kB"
 json = "1 MiB"
 msgpack = "2 MiB"
 "file/jpg" = "5 MiB"
+timeout = 55
 
 [default.shutdown]
 ctrlc = true

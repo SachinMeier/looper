@@ -214,7 +214,7 @@ impl LoopOutService {
         let invoice = lndg
             .add_invoice(amount)
             .await
-            .map_err(|e| LoopOutServiceError::new(format!("error adding invoice: {:?}", e.to_http())))?;
+            .map_err(|e| LoopOutServiceError::new(format!("error adding invoice: {:?}", e)))?;
         mem::drop(lndg);
         log::info!("added invoice: {:?}", invoice.payment_hash);
 
