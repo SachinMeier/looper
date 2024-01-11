@@ -21,19 +21,19 @@ pub struct LNDConfig {
 const DEFAULT_INVOICE_LIFETIME: u64 = 86400;
 
 pub fn get_lnd_config(cfg: &settings::Config) -> Result<LNDConfig, LNDGatewayError> {
-    let invoice_lifetime = match cfg.get("lnd.invoice_lifetime") {
+    let invoice_lifetime = match cfg.get("vendor.invoice_lifetime") {
         Ok(v) => v,
         Err(_) => DEFAULT_INVOICE_LIFETIME,
     };
 
     let address = cfg
-        .get("lnd.address")
-        .map_err(|e| LNDGatewayError::new(format!("lnd.address not set: {:?}", e.to_string())))?;
+        .get("vendor.address")
+        .map_err(|e| LNDGatewayError::new(format!("vendor.address not set: {:?}", e.to_string())))?;
     let cert_path = cfg
-        .get("lnd.cert_path")
-        .map_err(|e| LNDGatewayError::new(format!("lnd.cert_path not set: {:?}", e.to_string())))?;
-    let macaroon_path = cfg.get("lnd.macaroon_path").map_err(|e| {
-        LNDGatewayError::new(format!("lnd.macaroon_path not set: {:?}", e.to_string()))
+        .get("vendor.cert_path")
+        .map_err(|e| LNDGatewayError::new(format!("vendor.cert_path not set: {:?}", e.to_string())))?;
+    let macaroon_path = cfg.get("vendor.macaroon_path").map_err(|e| {
+        LNDGatewayError::new(format!("vendor.macaroon_path not set: {:?}", e.to_string()))
     })?;
 
     Ok(LNDConfig {
@@ -73,7 +73,7 @@ impl LNDGateway {
 
         let client = new_client(ln_cfg.clone()).await.map_err(|e| {
             LNDGatewayError::new(format!(
-                "failed to connect to lnd: {:?} {:?}",
+                "failed to connect to vendor: {:?} {:?}",
                 ln_cfg.address, e
             ))
         })?;

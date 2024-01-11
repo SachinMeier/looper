@@ -4,7 +4,7 @@ import "lightning.proto";
 
 package routerrpc;
 
-option go_package = "github.com/lightningnetwork/lnd/lnrpc/routerrpc";
+option go_package = "github.com/lightningnetwork/vendor/lnrpc/routerrpc";
 
 // Router is a service that offers advanced interaction with the router
 // subsystem of the daemon.

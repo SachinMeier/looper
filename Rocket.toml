@@ -5,7 +5,6 @@ max_blocking = 512
 ident = "Rocket"
 log_level = "normal"
 
-
 [default.limits]
 form = "64 kB"
 json = "1 MiB"
@@ -20,4 +19,3 @@ ctrlc = true
 signals = ["term", "hup"]
 grace = 5
 mercy = 5
-
