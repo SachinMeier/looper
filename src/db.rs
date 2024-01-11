@@ -272,11 +272,11 @@ pub fn get_full_loop_out(
 
 pub fn get_loop_outs_by_state(
     conn: &mut PooledConnection,
-    state: String,
+    _state: String,
 ) -> Result<Vec<LoopOut>, diesel::result::Error> {
     use crate::schema::loop_outs::dsl::*;
 
-    let results = loop_outs.filter(state.eq(state)).load::<LoopOut>(conn)?;
+    let results = loop_outs.filter(state.eq(_state)).load::<LoopOut>(conn)?;
 
     Ok(results)
 }

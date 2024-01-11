@@ -1,8 +1,11 @@
 use std::thread;
 
-use figment::{Figment, providers::{Format, Serialized, Toml}};
-use rocket::Config;
+use figment::{
+    providers::{Format, Serialized, Toml},
+    Figment,
+};
 use rocket::serde::json::Json;
+use rocket::Config;
 
 use crate::{
     api::{
