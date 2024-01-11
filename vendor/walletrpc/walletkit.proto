@@ -5,7 +5,7 @@ import "signrpc/signer.proto";
 
 package walletrpc;
 
-option go_package = "github.com/lightningnetwork/lnd/lnrpc/walletrpc";
+option go_package = "github.com/lightningnetwork/vendor/lnrpc/walletrpc";
 
 // WalletKit is a service that gives access to the core functionalities of the
 // daemon's wallet.

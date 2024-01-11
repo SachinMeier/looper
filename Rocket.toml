@@ -1,0 +1,21 @@
+[default]
+address = "127.0.0.1"
+port = 8000
+max_blocking = 512
+ident = "Rocket"
+log_level = "normal"
+
+[default.limits]
+form = "64 kB"
+json = "1 MiB"
+msgpack = "2 MiB"
+"file/jpg" = "5 MiB"
+read_timeout = 55000
+write_timeout = 55000
+timeout = 32000
+
+[default.shutdown]
+ctrlc = true
+signals = ["term", "hup"]
+grace = 5
+mercy = 5

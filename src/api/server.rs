@@ -1,3 +1,12 @@
+use std::thread;
+
+use figment::{
+    providers::{Format, Serialized, Toml},
+    Figment,
+};
+use rocket::serde::json::Json;
+use rocket::Config;
+
 use crate::{
     api::{
         self,
@@ -6,8 +15,6 @@ use crate::{
     },
     services::loop_out::LoopOutService,
 };
-use rocket::serde::json::Json;
-use std::thread;
 
 pub struct LooperServer {
     pub loop_out_svc: LoopOutService,
@@ -29,9 +36,14 @@ impl LooperServer {
                     .enable_all()
                     .build()
                     .unwrap();
+
+                let figment = Figment::from(rocket::Config::default())
+                    .merge(Serialized::defaults(Config::default()))
+                    .merge(Toml::file("Rocket.toml").nested());
+
                 rt.block_on(async move {
                     // TODO: build custom with config & timeout
-                    let builder = rocket::build()
+                    let builder = rocket::custom(figment)
                         .manage(self.loop_out_svc)
                         .mount("/loop", routes![index, new_loop_out, get_loop_out]);
                     let _ = builder.launch().await;

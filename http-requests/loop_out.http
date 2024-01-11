@@ -1,0 +1,8 @@
+POST http://localhost:8000/loop/out
+content-type: application/json
+
+
+{
+  "amount": 1000,
+  "pubkey": "daae6d31ff9d92f5406191e9ce319455d2551f7f1e48a13fe2a20654edf1dbee"
+}

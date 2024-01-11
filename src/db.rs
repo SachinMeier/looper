@@ -270,6 +270,17 @@ pub fn get_full_loop_out(
     }
 }
 
+pub fn get_loop_outs_by_state(
+    conn: &mut PooledConnection,
+    _state: String,
+) -> Result<Vec<LoopOut>, diesel::result::Error> {
+    use crate::schema::loop_outs::dsl::*;
+
+    let results = loop_outs.filter(state.eq(_state)).load::<LoopOut>(conn)?;
+
+    Ok(results)
+}
+
 // unused for now, but a first attempt at db transactions
 // Insert Full Loop Out Data
 #[allow(dead_code)]

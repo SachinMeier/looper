@@ -12,7 +12,7 @@ pub fn build_config() -> Result<Config, ConfigError> {
     log::info!("loading config for {}", profile);
 
     Config::builder()
-        .add_source(File::with_name("config/default"))
+        .add_source(File::with_name("config/example"))
         .add_source(File::with_name(&format!("config/{}", profile)).required(false))
         .add_source(Environment::with_prefix("RLS").separator("_"))
         .build()

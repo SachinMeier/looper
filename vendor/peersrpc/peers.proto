@@ -4,7 +4,7 @@ import "lightning.proto";
 
 package peersrpc;
 
-option go_package = "github.com/lightningnetwork/lnd/lnrpc/peersrpc";
+option go_package = "github.com/lightningnetwork/vendor/lnrpc/peersrpc";
 
 // Peers is a service that can be used to get information and interact
 // with the other nodes of the network.

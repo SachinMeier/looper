@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS scripts (
     remote_pubkey       TEXT        NOT NULL,
     local_pubkey        TEXT        NOT NULL,
     local_pubkey_index  INT         NOT NULL,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
