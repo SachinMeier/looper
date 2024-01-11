@@ -5,15 +5,19 @@ max_blocking = 512
 ident = "Rocket"
 log_level = "normal"
 
+
 [default.limits]
 form = "64 kB"
 json = "1 MiB"
 msgpack = "2 MiB"
 "file/jpg" = "5 MiB"
-timeout = 55
+read_timeout = 55000
+write_timeout = 55000
+timeout = 32000
 
 [default.shutdown]
 ctrlc = true
 signals = ["term", "hup"]
 grace = 5
 mercy = 5
+
